@@ -1,0 +1,156 @@
+library(dplyr)
+library(ggplot2)
+library(caret)
+library(rlist)
+library("xgboost")
+library("mlr")
+
+df <- read.csv("pml-training.csv", na.strings = c("NA", "NaN", "", "#DIV/0!"))
+
+set.seed(31)
+
+# -------------- clean data set --------------
+df$X <- NULL
+
+# crop predictors without any information
+l <- list()
+for (i in 1:dim(df)[2]) {
+  if (any(!is.na(df[, i])) == F) {
+    l <- list.append(l, colnames(df)[i])
+  }
+}
+df[unlist(l)] <- NULL
+
+# check for factors
+l <- list()
+for (i in 1:ncol(df)) {
+  if (length(unique(na.omit(df[, i]))) <= 2) {
+    l <- list.append(l, colnames(df)[i])
+    print(colnames(df)[i])
+  }
+}
+
+# remove zero variance/near zero variance predictors
+dim(df)
+nzv <- nearZeroVar(df)
+df <- df[, -nzv]
+dim(df)
+
+# remove highly correlated predictors NOT FINISHED --> cor[70] is -.99
+nums <- select_if(df, is.numeric)
+descrCor <- cor(nums)
+highCorr <- sum(na.omit(abs(descrCor[upper.tri(descrCor)])) > .99)
+highCorr
+which(na.omit(abs(descrCor[upper.tri(descrCor)])) > .99)
+which(cor(nums) == na.omit(descrCor[upper.tri(descrCor)])[70])
+findCorrelation(na.omit(descrCor), cutoff = .9)
+
+# find linear combinations
+findLinearCombos(nums)
+
+# Show predictors with much information
+l <- list()
+for (i in 1:dim(df)[2]) {
+  if ((sum(is.na(df[, i])) / dim(df)[1]) > 0.9) {
+    l <- list.append(l, colnames(df)[i])
+  }
+}
+
+l
+
+for (i in seq_along(l)) {
+  ggplot(df, aes(x = df[, l[[i]]], y = classe)) +
+    geom_point()
+  ggsave(filename = paste("plots/myplot", l[i], ".png", sep = ""))
+}
+
+# featurePlot (caret)
+featurePlot(
+  x = df[, -which(colnames(df) == "classe")],
+  y = df$classe,
+  plot = "box",
+  ## Pass in options to bwplot()
+  scales = list(
+    y = list(relation = "free"),
+    x = list(rot = 90)
+  ),
+  layout = c(4, 1),
+  auto.key = list(columns = 2)
+)
+
+# setup train and test set
+train <- sample(nrow(df), 0.8 * nrow(df), replace = F)
+train <- createDataPartition(df$classe, p = 0.8, list = F)
+training <- df[train, ]
+test <- df[-train, ]
+
+# normalize numeric predictors
+preProcValues <- preProcess(training, method = c("center", "scale"))
+training <- predict(preProcValues, training)
+test <- predict(preProcValues, test)
+
+## faster
+# pp_no_nzv <- preProcess(schedulingData[, -8],
+#                         method = c("center", "scale", "YeoJohnson", "nzv"))
+
+# ----------- caret ----------- 
+# gbm
+fitControl <- trainControl(## 10-fold CV
+  method = "repeatedcv",
+  number = 10,
+  ## repeated two times
+  repeats = 2)
+
+gbmGrid <-  expand.grid(interaction.depth = c(1, 5, 9), 
+                        n.trees = (1:30)*50, 
+                        shrinkage = seq(0.1,1,0.1),
+                        n.minobsinnode = 20)
+
+gbmFit <- train(classe ~ ., data = training, 
+                 method = "gbm", 
+                 trControl = fitControl,
+                 ## This last option is actually one
+                 ## for gbm() that passes through
+                 verbose = FALSE,
+                 tuneGrid = gbmGrid)
+gbmFit
+
+# For a gradient boosting machine (GBM) model, there are three main tuning parameters:
+#   - number of iterations, i.e. trees, (called n.trees in the gbm function)
+#   - complexity of the tree, called interaction.depth
+#   - learning rate: how quickly the algorithm adapts, called shrinkage
+#   - the minimum number of training set samples in a node to commence splitting (n.minobsinnode)
+
+# xgbTree method = 'xgbTree'
+
+trellis.par.set(caretTheme())
+plot(gbmFit)  
+# use xgboost to predict values
+
+# performance
+# confusionMatrix(data = test_set$pred, reference = test_set$obs)
+
+# Set parameters(default)
+params <- list(booster = "gbtree", objective = "multi:softprob", num_class = 4, eval_metric = "error")
+
+# boosting
+boosting <- gbm(clsse ~ ., data = training, distribution = "multinomial", n.trees = 500, interaction.depth = 1, cv.folds = 5, shrinkage = 0.005)
+
+# cross validation to tune hyperparameters
+
+
+# ----------- mlr ----------- 
+# Task -> Learner -> train
+## General example:
+# task = makeClassifTask(data = iris, target = "Species")
+# 
+# ## Generate the learner
+# lrn = makeLearner("classif.lda")
+# 
+# ## Train the learner
+# mod = train(lrn, task)
+
+# Genearate Task
+makeClassifTask(data = df, target = "classe")
+
+# cv with resample: makeResampleDesc/resample
