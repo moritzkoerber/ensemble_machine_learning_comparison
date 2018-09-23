@@ -1,63 +1,72 @@
-library(dplyr)
-library(ggplot2)
-library(caret)
-library(rlist)
+# -------------- Packages --------------
+library("dplyr")
+library("ggplot2")
+library("caret")
+library("rlist")
 library("xgboost")
 library("mlr")
+library("visdat")
 
-df <- read.csv("pml-training.csv", na.strings = c("NA", "NaN", "", "#DIV/0!"))
+# -------------- Read Data --------------
+df <- read.csv("pml-training.csv", na.strings = c("NA", "NaN", "", "#DIV/0!"), row.names = 1)
 
 set.seed(31)
 
 # -------------- clean data set --------------
-df$X <- NULL
+# remove easily identifiable useless data
+df$user_name <- NULL
 
-# crop predictors without any information
-l <- list()
-for (i in 1:dim(df)[2]) {
-  if (any(!is.na(df[, i])) == F) {
-    l <- list.append(l, colnames(df)[i])
-  }
-}
-df[unlist(l)] <- NULL
+# crop predictors with mostly NAs
+df %>%
+  select(everything()) %>%
+  summarise_all(funs(sum(is.na(.)) / length(.))) -> p
+
+# check these variables
+vis_miss(df[which(p > 0.9)],
+  sort_miss = TRUE, warn_large_data = F
+)
+
+# remove them if sensible
+df[which(p > 0.9)] <- NULL
+
+# visualize data
+vis_dat(df, warn_large_data = F)
+
+# are mixed data types in one variable?
+vis_guess(df)
 
 # check for factors
 l <- list()
 for (i in 1:ncol(df)) {
   if (length(unique(na.omit(df[, i]))) <= 2) {
     l <- list.append(l, colnames(df)[i])
-    print(colnames(df)[i])
+    print(l)
   }
 }
 
 # remove zero variance/near zero variance predictors
-dim(df)
 nzv <- nearZeroVar(df)
-df <- df[, -nzv]
-dim(df)
+nzv
+df <- df[-nzv]
 
 # remove highly correlated predictors NOT FINISHED --> cor[70] is -.99
 nums <- select_if(df, is.numeric)
 descrCor <- cor(nums)
-highCorr <- sum(na.omit(abs(descrCor[upper.tri(descrCor)])) > .99)
-highCorr
-which(na.omit(abs(descrCor[upper.tri(descrCor)])) > .99)
-which(cor(nums) == na.omit(descrCor[upper.tri(descrCor)])[70])
-findCorrelation(na.omit(descrCor), cutoff = .9)
+
+highCorr <- sum(na.omit(abs(descrCor[upper.tri(descrCor)])) >= .98)
+
+na.omit(descrCor[upper.tri(descrCor)])[which(na.omit(abs(descrCor[upper.tri(descrCor)])) >= .98, arr.ind = TRUE)]
+
+which(na.omit(abs(descrCor)) >= .98 & na.omit(abs(descrCor)) < 1, arr.ind = TRUE)
+
+rm <- findCorrelation(na.omit(descrCor), cutoff = .98, verbose = T, exact = T, names = T)
+
+df %>% select(-rm) -> df
 
 # find linear combinations
 findLinearCombos(nums)
 
-# Show predictors with much information
-l <- list()
-for (i in 1:dim(df)[2]) {
-  if ((sum(is.na(df[, i])) / dim(df)[1]) > 0.9) {
-    l <- list.append(l, colnames(df)[i])
-  }
-}
-
-l
-
+# -------------- plot features --------------
 for (i in seq_along(l)) {
   ggplot(df, aes(x = df[, l[[i]]], y = classe)) +
     geom_point()
@@ -65,19 +74,12 @@ for (i in seq_along(l)) {
 }
 
 # featurePlot (caret)
-featurePlot(
-  x = df[, -which(colnames(df) == "classe")],
-  y = df$classe,
-  plot = "box",
-  ## Pass in options to bwplot()
-  scales = list(
-    y = list(relation = "free"),
-    x = list(rot = 90)
-  ),
-  layout = c(4, 1),
-  auto.key = list(columns = 2)
-)
+fp <- df[which(sapply(df, class) %in% c("integer", "numeric"))]
+featurePlot(x = fp, y = df$classe, plot = "pairs")
 
+
+# -------------- Modeling --------------
+# ---------- Train/Test-set ----------
 # setup train and test set
 train <- sample(nrow(df), 0.8 * nrow(df), replace = F)
 train <- createDataPartition(df$classe, p = 0.8, list = F)
@@ -93,26 +95,31 @@ test <- predict(preProcValues, test)
 # pp_no_nzv <- preProcess(schedulingData[, -8],
 #                         method = c("center", "scale", "YeoJohnson", "nzv"))
 
-# ----------- caret ----------- 
-# gbm
-fitControl <- trainControl(## 10-fold CV
+# ---------- Caret ----------
+# ------- GBM -------
+fitControl <- trainControl( ## 10-fold CV
   method = "repeatedcv",
   number = 10,
   ## repeated two times
-  repeats = 2)
+  repeats = 2
+)
 
-gbmGrid <-  expand.grid(interaction.depth = c(1, 5, 9), 
-                        n.trees = (1:30)*50, 
-                        shrinkage = seq(0.1,1,0.1),
-                        n.minobsinnode = 20)
+gbmGrid <- expand.grid(
+  interaction.depth = c(1, 5, 9),
+  n.trees = (1:30) * 50,
+  shrinkage = seq(0.1, 1, 0.1),
+  n.minobsinnode = 20
+)
 
-gbmFit <- train(classe ~ ., data = training, 
-                 method = "gbm", 
-                 trControl = fitControl,
-                 ## This last option is actually one
-                 ## for gbm() that passes through
-                 verbose = FALSE,
-                 tuneGrid = gbmGrid)
+gbmFit <- train(classe ~ .,
+  data = training,
+  method = "gbm",
+  trControl = fitControl,
+  ## This last option is actually one
+  ## for gbm() that passes through
+  verbose = FALSE,
+  tuneGrid = gbmGrid
+)
 gbmFit
 
 # For a gradient boosting machine (GBM) model, there are three main tuning parameters:
@@ -124,7 +131,7 @@ gbmFit
 # xgbTree method = 'xgbTree'
 
 trellis.par.set(caretTheme())
-plot(gbmFit)  
+plot(gbmFit)
 # use xgboost to predict values
 
 # performance
@@ -139,14 +146,14 @@ boosting <- gbm(clsse ~ ., data = training, distribution = "multinomial", n.tree
 # cross validation to tune hyperparameters
 
 
-# ----------- mlr ----------- 
+# ----------- mlr -----------
 # Task -> Learner -> train
 ## General example:
 # task = makeClassifTask(data = iris, target = "Species")
-# 
+#
 # ## Generate the learner
 # lrn = makeLearner("classif.lda")
-# 
+#
 # ## Train the learner
 # mod = train(lrn, task)
 
