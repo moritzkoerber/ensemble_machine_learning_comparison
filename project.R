@@ -4,8 +4,12 @@ library("ggplot2")
 library("caret")
 library("rlist")
 library("xgboost")
-library("mlr")
+# library("mlr")
 library("visdat")
+library(ISLR)
+library(tree)
+library(xgboost)
+library(gbm)
 
 # -------------- Read Data --------------
 df <- read.csv("pml-training.csv", na.strings = c("NA", "NaN", "", "#DIV/0!"), row.names = 1)
@@ -66,6 +70,12 @@ df %>% select(-rm) -> df
 # find linear combinations
 findLinearCombos(nums)
 
+# save cleaned data
+write.csv(df, "pml-training_cleaned.csv", row.names = F, fileEncoding = "UTF-8")
+
+# -------------- read cleaned data --------------
+df <- read.csv("pml-training_cleaned.csv", na.strings = c("NA", "NaN", "", "#DIV/0!"), header = T, encoding = "UTF-8")
+
 # -------------- plot features --------------
 for (i in seq_along(l)) {
   ggplot(df, aes(x = df[, l[[i]]], y = classe)) +
@@ -75,10 +85,12 @@ for (i in seq_along(l)) {
 
 # featurePlot (caret)
 fp <- df[which(sapply(df, class) %in% c("integer", "numeric"))]
-featurePlot(x = fp, y = df$classe, plot = "pairs")
+featurePlot(x = fp[6:10], y = df$classe, plot = "pairs")
 
 
 # -------------- Modeling --------------
+df <- read.csv("pml-training_cleaned.csv", na.strings = c("NA", "NaN", "", "#DIV/0!"), header = T, encoding = "UTF-8")
+
 # ---------- Train/Test-set ----------
 # setup train and test set
 train <- sample(nrow(df), 0.8 * nrow(df), replace = F)
@@ -111,15 +123,16 @@ gbmGrid <- expand.grid(
   n.minobsinnode = 20
 )
 
-gbmFit <- train(classe ~ .,
-  data = training,
+gbmFit <- train(classe ~ yaw_arm,
+  data = training[,-classe],
   method = "gbm",
-  trControl = fitControl,
+  # trControl = fitControl,
   ## This last option is actually one
   ## for gbm() that passes through
-  verbose = FALSE,
-  tuneGrid = gbmGrid
+  verbose = FALSE
+  # tuneGrid = gbmGrid
 )
+
 gbmFit
 
 # For a gradient boosting machine (GBM) model, there are three main tuning parameters:
@@ -128,10 +141,13 @@ gbmFit
 #   - learning rate: how quickly the algorithm adapts, called shrinkage
 #   - the minimum number of training set samples in a node to commence splitting (n.minobsinnode)
 
-# xgbTree method = 'xgbTree'
-
 trellis.par.set(caretTheme())
 plot(gbmFit)
+
+confusionMatrix(data = training$class, reference = test_set$obs)
+
+# ------- xgboost -------
+# xgbTree method = 'xgbTree'
 # use xgboost to predict values
 
 # performance
@@ -141,8 +157,10 @@ plot(gbmFit)
 params <- list(booster = "gbtree", objective = "multi:softprob", num_class = 4, eval_metric = "error")
 
 # boosting
-boosting <- gbm(clsse ~ ., data = training, distribution = "multinomial", n.trees = 500, interaction.depth = 1, cv.folds = 5, shrinkage = 0.005)
+boosting <- gbm(classe ~ ., data = training, distribution = "multinomial", n.trees = 500, interaction.depth = 1, cv.folds = 5, shrinkage = 0.005)
+boosting
 
+a <- predict(boosting, training,type="response")
 # cross validation to tune hyperparameters
 
 
