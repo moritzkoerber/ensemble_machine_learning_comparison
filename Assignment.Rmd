@@ -25,9 +25,9 @@ First, I am looking at the target variable "classe":
 glimpse(df$classe)
 ```
 
-Since it is a categorical variable, it is a classification problem. Hence, an algorithm like logistic regression, random forests, or kmeannearest neighbor is suitable. 
+Since it is a categorical variable, it is a classification problem. Hence, an algorithm like logistic regression, random forests, or knn is suitable. 
 
-# 2. Inspecting Predictors
+# 2. Inspect predictors
 Crop predictors without any information:
 ```{r crop predictors without any information, echo=T}
 l <- list()
