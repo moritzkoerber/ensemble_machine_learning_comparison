@@ -9,7 +9,7 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-First step: Load required packages:
+First step: Load required packages.
 
 ```{r message=FALSE, warning=FALSE}
 library("dplyr")
@@ -35,11 +35,10 @@ First, I am looking at the target variable "classe":
 glimpse(df$classe)
 ```
 
-Since it is a categorical variable, it is a classification problem. Hence, an algorithm like logistic regression, random forests, or knn is suitable. 
+Since it is a categorical variable, it is a classification problem. Hence, an algorithm like logistic regression, random forests, or a similar algorithm is suitable. 
 
-# 2. Inspect predictors
-Remove obvious non-predictive variables
-
+# 2. Clean the data set
+Remove obvious non-predictive variables:
 ```{r crop predictors without any information, echo=T}
 df %>% select(-c(raw_timestamp_part_1, raw_timestamp_part_2, cvtd_timestamp)) -> df
 ```
@@ -53,7 +52,7 @@ df <- removeConstantFeatures(df, perc = .02)
 ```
 
 Remove predictors with mostly NAs:
-```{r Show predictors with much information}
+```{r message=FALSE, warning=FALSE}
 df %>%
   select(everything()) %>%
   summarise_all(funs(sum(is.na(.)) / length(.))) -> p
@@ -66,3 +65,46 @@ vis_miss(df[which(p > 0.975)],
 # remove them if sensible
 df[which(p > 0.975)] <- NULL
 ```
+
+Remove highly correlated predictors
+```{r}
+nums <- select_if(df, is.numeric)
+descrCor <- cor(nums)
+
+highCorr <- sum(na.omit(abs(descrCor[upper.tri(descrCor)])) >= .98)
+
+na.omit(descrCor[upper.tri(descrCor)])[which(na.omit(abs(descrCor[upper.tri(descrCor)])) >= .98, arr.ind = TRUE)]
+
+which(na.omit(abs(descrCor)) >= .98 & na.omit(abs(descrCor)) < 1, arr.ind = TRUE)
+
+findCorrelation(na.omit(descrCor), cutoff = .98, verbose = T, exact = T, names = T)
+```
+
+There are two variables with high correlation --> consider in model evaluation! I will leave them in the dataset for this time.
+
+Find linear combinations:
+```{r}
+findLinearCombos(nums)
+```
+
+Visualize the data:
+```{r}
+vis_dat(df, warn_large_data = F)
+```
+
+Are mixed data types in one variable?
+```{r}
+vis_guess(df)
+```
+
+Plot the features:
+```{r}
+nums <- unlist(lapply(df, is.numeric))
+featurePlot(x = df[nums], y = df$classe, plot = "strip")
+```
+
+Save the cleaned data
+```{r eval = FALSE}
+saveRDS(df, "1_data/cleaned_data.rds")
+```
+

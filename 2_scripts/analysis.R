@@ -4,12 +4,12 @@ library("caret")
 library("mlr")
 library("visdat")
 
-# -------------- Read Data --------------
+# -------------- Read data --------------
 df <- read.csv("1_data/pml-training.csv", na.strings = c("NA", "NaN", "", "#DIV/0!"), row.names = 1)
 
 set.seed(31)
 
-# -------------- clean data set --------------
+# -------------- Clean data set --------------
 # remove obvious non-predictive variables
 df %>% select(-c(raw_timestamp_part_1, raw_timestamp_part_2, cvtd_timestamp)) -> df
 
@@ -36,12 +36,6 @@ vis_miss(df[which(p > 0.975)],
 # remove them if sensible
 df[which(p > 0.975)] <- NULL
 
-# visualize data
-vis_dat(df, warn_large_data = F)
-
-# are mixed data types in one variable?
-vis_guess(df)
-
 # remove highly correlated predictors NOT FINISHED --> cor[70] is -.99
 nums <- select_if(df, is.numeric)
 descrCor <- cor(nums)
@@ -52,11 +46,18 @@ na.omit(descrCor[upper.tri(descrCor)])[which(na.omit(abs(descrCor[upper.tri(desc
 
 which(na.omit(abs(descrCor)) >= .98 & na.omit(abs(descrCor)) < 1, arr.ind = TRUE)
 
-# 2 variables with high correlation --> consider in model evaluation
 rm <- findCorrelation(na.omit(descrCor), cutoff = .98, verbose = T, exact = T, names = T)
+
+rm # 2 variables with high correlation --> consider in model evaluation
 
 # find linear combinations
 findLinearCombos(nums)
+
+# visualize data
+vis_dat(df, warn_large_data = F)
+
+# are mixed data types in one variable?
+vis_guess(df)
 
 # save cleaned data
 saveRDS(df, "1_data/cleaned_data.rds")
@@ -64,95 +65,22 @@ saveRDS(df, "1_data/cleaned_data.rds")
 # read cleaned data if necessary
 # df <- readRDS("1_data/cleaned_data.rds")
 
-# -------------- plot features --------------
+# -------------- Plot features --------------
 nums <- unlist(lapply(df, is.numeric))
 featurePlot(x = df[nums], y = df$classe, plot = "strip")
 
-# ---------- Train/Test-set ----------
-# setup train and test set
-train <- sample(nrow(df), 0.8 * nrow(df), replace = F)
-train <- createDataPartition(df$classe, p = 0.8, list = F)
-training <- df[train, ]
-test <- df[-train, ]
-
-### convert facotrs to dummy?
-
-# normalize numeric predictors
-preProcValues <- preProcess(training, method = c("center", "scale")) ### avoid overfit? always only on training?
-training <- predict(preProcValues, training)
-test <- predict(preProcValues, test)
-
-## faster
-# pp_no_nzv <- preProcess(schedulingData[, -8],
-#                         method = c("center", "scale", "YeoJohnson", "nzv"))
-
-# ---------- Caret ----------
-# ------- GBM -------
-fitControl <- trainControl( ## 10-fold CV
-  method = "repeatedcv",
-  number = 10,
-  ## repeated two times
-  repeats = 2
-)
-
-gbmGrid <- expand.grid(
-  interaction.depth = c(1, 5, 9),
-  n.trees = (1:30) * 50,
-  shrinkage = seq(0.1, 1, 0.1),
-  n.minobsinnode = 20
-)
-
-gbmFit <- train(classe ~ yaw_arm,
-  data = training[, -classe],
-  method = "gbm",
-  # trControl = fitControl,
-  ## This last option is actually one
-  ## for gbm() that passes through
-  verbose = FALSE
-  # tuneGrid = gbmGrid
-)
-
-gbmFit
-
-# For a gradient boosting machine (GBM) model, there are three main tuning parameters:
-#   - number of iterations, i.e. trees, (called n.trees in the gbm function)
-#   - complexity of the tree, called interaction.depth
-#   - learning rate: how quickly the algorithm adapts, called shrinkage
-#   - the minimum number of training set samples in a node to commence splitting (n.minobsinnode)
-
-trellis.par.set(caretTheme())
-plot(gbmFit)
-
-confusionMatrix(data = training$class, reference = test_set$obs)
-
-# ------- xgboost -------
-# xgbTree method = 'xgbTree'
-# use xgboost to predict values
-
-# performance
-# confusionMatrix(data = test_set$pred, reference = test_set$obs)
-
-# Set parameters(default)
-params <- list(booster = "gbtree", objective = "multi:softprob", num_class = 4, eval_metric = "error")
-
-# boosting
-boosting <- gbm(classe ~ ., data = training, distribution = "multinomial", n.trees = 500, interaction.depth = 1, cv.folds = 5, shrinkage = 0.005)
-boosting
-
-a <- predict(boosting, training, type = "response")
-# cross validation to tune hyperparameters
-
-
-# ----------- mlr -----------
-# -------------- preprocess data --------------
+# -------------- Training --------------
+# ---------- Task ----------
 task <- makeClassifTask(id = "nike", data = df, target = "classe")
 
-# nested resampling
+# ---------- Inner resampling ----------
 rdesc.inner <- makeResampleDesc("CV", iters = 10)
 
+# ---------- Measures ----------
 measures <- list(mmce)
 
-# random forest
+# ---------- Learners ----------
+# ------- Random forest -------
 lrn.rndforest <- makePreprocWrapperCaret("classif.randomForest", ppc.center = T, ppc.scale = T)
 
 ps.rndforest <- makeParamSet(
@@ -170,7 +98,7 @@ tuned.lrn.rndforest <- makeTuneWrapper(lrn.rndforest,
   control = tune.ctrl.rndforest
 )
 
-# xgboost
+# ------- Xgboost -------
 lrn.xgboost <- makePreprocWrapperCaret("classif.xgboost", ppc.center = T, ppc.scale = T)
 
 ps.xgboost <- makeParamSet(
@@ -189,10 +117,10 @@ tuned.lrn.xgboost <- makeTuneWrapper(lrn.xgboost,
   control = tune.ctrl.xgboost
 )
 
-# ranger (rf without tuning)
+# ------- Ranger -------
 lrn.ranger <- makePreprocWrapperCaret("classif.ranger", ppc.center = T, ppc.scale = T)
 
-# gbm
+# ------- Gbm -------
 lrn.gbm <- makePreprocWrapperCaret("classif.gbm", ppc.center = T, ppc.scale = T)
 
 ps.gbm <- makeParamSet(
@@ -208,11 +136,13 @@ tuned.lrn.gbm <- makeTuneWrapper(lrn.gbm,
   resampling = rdesc.inner,
   control = tune.ctrl.gbm
 )
-# Define outer resampling, each learner is evaluated with that one:
+
+# ---------- Outer resampling ----------
+# (each learner is evaluated with that one)
 rdesc.outer <- makeResampleDesc(method = "CV", iters = 5)
 resample.instance.outer <- makeResampleInstance(desc = rdesc.outer, task = task)
 
-# benchmark
+# ---------- Benchmark ----------
 bm <- benchmark(
   learners = list(
     tuned.lrn.rndforest,
@@ -230,27 +160,28 @@ bm
 plotBMRBoxplots(bm)
 
 # confusion matrix
-for (i in (1:2)) {
+for (i in (1:4)) {
   print(calculateConfusionMatrix(bm$results$nike[[i]][7]$pred))
 }
 
-
-## Train final model:
-## ------------------------------------------------
+# -------------- Train final model --------------
+# choose best learner:
 model <- mlr::train(learner = , task = task)
 
 save(list = model, file = "my_final_model.rds")
 
-load("my_final_model.rds")
+# load("my_final_model.rds")
 
-
-# ----------- Predict new data -----------
+# -------------- Predict new data --------------
+# ---------- Load new data ----------
 test <- read.csv("1_data/pml-testing.csv", na.strings = c("NA", "NaN", "", "#DIV/0!"), row.names = 1)
 
+# make sure that they have the same columns (except target)
 df %>%
   select(-classe) %>%
   colnames() -> vars
 
 test <- test[vars]
 
+# ---------- Prediction ----------
 pred <- predict(model, newdata = test)
