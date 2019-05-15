@@ -11,7 +11,7 @@ library("xgboost")
 library("gbm")
 
 # -------------- Read Data --------------
-df <- read.csv("pml-training.csv", na.strings = c("NA", "NaN", "", "#DIV/0!"), row.names = 1)
+df <- read.csv("1_data/pml-training.csv", na.strings = c("NA", "NaN", "", "#DIV/0!"), row.names = 1)
 
 set.seed(31)
 
@@ -68,7 +68,7 @@ findLinearCombos(nums)
 saveRDS(df, "cleaned_data.rds")
 
 # read cleaned data if necessary
-# df <- readRDS("cleaned_data.rds")
+# df <- readRDS("1_data/cleaned_data.rds")
 
 # -------------- plot features --------------
 nums <- unlist(lapply(df, is.numeric))
@@ -225,10 +225,11 @@ resample.instance.outer <- makeResampleInstance(desc = rdesc.outer, task = task)
 # benchmark
 bm <- benchmark(
   learners = list(
-                  # tuned.lrn.rndforest, 
-                  # lrn.ranger, 
-                  # tuned.lrn.xgboost, 
-                  tuned.lrn.gbm),
+    # tuned.lrn.rndforest,
+    # lrn.ranger,
+    # tuned.lrn.xgboost,
+    tuned.lrn.gbm
+  ),
   tasks = task,
   resamplings = resample.instance.outer,
   measures = measures
