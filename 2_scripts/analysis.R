@@ -174,14 +174,14 @@ save(list = model, file = "my_final_model.rds")
 
 # -------------- Predict new data --------------
 # ---------- Load new data ----------
-test <- read.csv("1_data/pml-testing.csv", na.strings = c("NA", "NaN", "", "#DIV/0!"), row.names = 1)
+testing <- read.csv("1_data/pml-testing.csv", na.strings = c("NA", "NaN", "", "#DIV/0!"), row.names = 1)
 
 # make sure that they have the same columns (except target)
 df %>%
   select(-classe) %>%
   colnames() -> vars
 
-test <- test[vars]
+testing <- testing[vars]
 
 # ---------- Prediction ----------
-pred <- predict(model, newdata = test)
+pred <- predict(model, newdata = testing)
