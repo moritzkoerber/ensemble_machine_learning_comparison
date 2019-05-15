@@ -1,14 +1,8 @@
 # -------------- Packages --------------
 library("dplyr")
-library("ggplot2")
 library("caret")
-library("rlist")
-library("xgboost")
 library("mlr")
 library("visdat")
-library("ISLR")
-library("xgboost")
-library("gbm")
 
 # -------------- Read Data --------------
 df <- read.csv("1_data/pml-training.csv", na.strings = c("NA", "NaN", "", "#DIV/0!"), row.names = 1)
@@ -20,8 +14,8 @@ set.seed(31)
 df %>% select(-c(raw_timestamp_part_1, raw_timestamp_part_2, cvtd_timestamp)) -> df
 
 #  extract id for blocking
-id <- df$user_name
-df %>% select(-user_name) -> df
+# id <- df$user_name
+# df %>% select(-user_name) -> df
 
 # remove zero variance/near zero variance predictors
 nzv <- nearZeroVar(df)
@@ -65,7 +59,7 @@ rm <- findCorrelation(na.omit(descrCor), cutoff = .98, verbose = T, exact = T, n
 findLinearCombos(nums)
 
 # save cleaned data
-saveRDS(df, "cleaned_data.rds")
+saveRDS(df, "1_data/cleaned_data.rds")
 
 # read cleaned data if necessary
 # df <- readRDS("1_data/cleaned_data.rds")
@@ -161,17 +155,14 @@ measures <- list(mmce)
 # random forest
 lrn.rndforest <- makePreprocWrapperCaret("classif.randomForest", ppc.center = T, ppc.scale = T)
 
-# feature selection
-# wie?
-
 ps.rndforest <- makeParamSet(
-  makeIntegerParam("ntree", lower = 1, upper = 10),
-  makeIntegerParam("mtry", lower = 5, upper = 10)
+  makeIntegerParam("ntree", lower = 100, upper = 1500),
+  makeIntegerParam("mtry", lower = 5, upper = 20)
   # makeLogicalParam("ppc.center"),
   # makeLogicalParam("ppc.scale")
 )
 
-tune.ctrl.rndforest <- makeTuneControlRandom(maxit = 10)
+tune.ctrl.rndforest <- makeTuneControlRandom(maxit = 100)
 
 tuned.lrn.rndforest <- makeTuneWrapper(lrn.rndforest,
   par.set = ps.rndforest,
@@ -187,17 +178,16 @@ ps.xgboost <- makeParamSet(
   makeNumericParam("colsample_bytree", lower = 0.5, upper = 0.9),
   makeNumericParam("gamma", lower = 0, upper = 2),
   makeIntegerParam("max_depth", lower = 4, upper = 10),
-  makeIntegerParam("nrounds", lower = 100, upper = 2000)
+  makeIntegerParam("nrounds", lower = 1000, upper = 5000)
 )
 
-tune.ctrl.xgboost <- makeTuneControlRandom(maxit = 50)
+tune.ctrl.xgboost <- makeTuneControlRandom(maxit = 100)
 
 tuned.lrn.xgboost <- makeTuneWrapper(lrn.xgboost,
   par.set = ps.xgboost,
   resampling = rdesc.inner,
   control = tune.ctrl.xgboost
 )
-# create dummy variables for xgboost
 
 # ranger (rf without tuning)
 lrn.ranger <- makePreprocWrapperCaret("classif.ranger", ppc.center = T, ppc.scale = T)
@@ -206,12 +196,12 @@ lrn.ranger <- makePreprocWrapperCaret("classif.ranger", ppc.center = T, ppc.scal
 lrn.gbm <- makePreprocWrapperCaret("classif.gbm", ppc.center = T, ppc.scale = T)
 
 ps.gbm <- makeParamSet(
-  makeIntegerParam("n.trees", lower = 100, upper = 200),
-  makeIntegerParam("interaction.depth", lower = 5, upper = 10),
+  makeIntegerParam("n.trees", lower = 100, upper = 1500),
+  makeIntegerParam("interaction.depth", lower = 5, upper = 20),
   makeNumericParam("shrinkage", lower = 0, upper = 0.2)
 )
 
-tune.ctrl.gbm <- makeTuneControlRandom(maxit = 30)
+tune.ctrl.gbm <- makeTuneControlRandom(maxit = 100)
 
 tuned.lrn.gbm <- makeTuneWrapper(lrn.gbm,
   par.set = ps.gbm,
@@ -219,15 +209,15 @@ tuned.lrn.gbm <- makeTuneWrapper(lrn.gbm,
   control = tune.ctrl.gbm
 )
 # Define outer resampling, each learner is evaluated with that one:
-rdesc.outer <- makeResampleDesc(method = "CV", iters = 3)
+rdesc.outer <- makeResampleDesc(method = "CV", iters = 5)
 resample.instance.outer <- makeResampleInstance(desc = rdesc.outer, task = task)
 
 # benchmark
 bm <- benchmark(
   learners = list(
-    # tuned.lrn.rndforest,
-    # lrn.ranger,
-    # tuned.lrn.xgboost,
+    tuned.lrn.rndforest,
+    lrn.ranger,
+    tuned.lrn.xgboost,
     tuned.lrn.gbm
   ),
   tasks = task,
@@ -247,7 +237,7 @@ for (i in (1:2)) {
 
 ## Train final model:
 ## ------------------------------------------------
-model <- mlr::train(learner = tuned_learner_gbm, task = task)
+model <- mlr::train(learner = , task = task)
 
 save(list = model, file = "my_final_model.rds")
 
@@ -255,7 +245,7 @@ load("my_final_model.rds")
 
 
 # ----------- Predict new data -----------
-test <- read.csv("pml-testing.csv", na.strings = c("NA", "NaN", "", "#DIV/0!"), row.names = 1)
+test <- read.csv("1_data/pml-testing.csv", na.strings = c("NA", "NaN", "", "#DIV/0!"), row.names = 1)
 
 df %>%
   select(-classe) %>%

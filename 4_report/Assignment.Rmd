@@ -8,18 +8,28 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
+
+First step: Load required packages:
+
 ```{r message=FALSE, warning=FALSE}
-# Load packages and data:
-library(dplyr)
-library(ggplot2)
-library(caret)
-library(rlist)
-df <- read.csv("pml-training.csv",na.strings = c("NA","NaN","","#DIV/0!"))
+library("dplyr")
+library("caret")
+library("mlr")
+library("visdat")
+```
+
+Load data and set seed:
+
+```{r}
+df <- read.csv("1_data/pml-training.csv", na.strings = c("NA", "NaN", "", "#DIV/0!"), row.names = 1)
+
 set.seed(31)
 ```
 
+
 # 1. Inspect target variable
 First, I am looking at the target variable "classe":
+
 ```{r echo=FALSE}
 # What is "classe"?
 glimpse(df$classe)
@@ -28,27 +38,31 @@ glimpse(df$classe)
 Since it is a categorical variable, it is a classification problem. Hence, an algorithm like logistic regression, random forests, or knn is suitable. 
 
 # 2. Inspect predictors
-Crop predictors without any information:
+Remove obvious non-predictive variables
+
 ```{r crop predictors without any information, echo=T}
-l <- list()
-for (i in 1:dim(df)[2]){
-  if (any(!is.na(df[,i]))==F){
-    l <- list.append(l,colnames(df)[i])
-  }
-}
-df[unlist(l)] <- NULL
+df %>% select(-c(raw_timestamp_part_1, raw_timestamp_part_2, cvtd_timestamp)) -> df
 ```
-Check for constant predictors:
 
+Remove zero variance/near zero variance predictors
+```{r}
+nzv <- nearZeroVar(df)
+df <- df[-nzv]
 
-Show predictors with much information:
+df <- removeConstantFeatures(df, perc = .02)
+```
+
+Remove predictors with mostly NAs:
 ```{r Show predictors with much information}
-l <- list()
-for (i in 1:dim(df)[2]){
-  if ((sum(is.na(df[,i]))/dim(df)[1])>0.9){
-    l <- list.append(l,colnames(df)[i])
-  }
-}
+df %>%
+  select(everything()) %>%
+  summarise_all(funs(sum(is.na(.)) / length(.))) -> p
 
-df[(unlist(l))] <- NULL
+# check these variables
+vis_miss(df[which(p > 0.975)],
+  sort_miss = TRUE, warn_large_data = F
+)
+
+# remove them if sensible
+df[which(p > 0.975)] <- NULL
 ```
