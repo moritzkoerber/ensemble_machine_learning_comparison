@@ -84,13 +84,13 @@ measures <- list(mmce)
 lrn.rndforest <- makePreprocWrapperCaret("classif.randomForest", ppc.center = T, ppc.scale = T)
 
 ps.rndforest <- makeParamSet(
-  makeIntegerParam("ntree", lower = 100, upper = 1500),
+  makeIntegerParam("ntree", lower = 1, upper = 2),
   makeIntegerParam("mtry", lower = 5, upper = 20)
   # makeLogicalParam("ppc.center"),
   # makeLogicalParam("ppc.scale")
 )
 
-tune.ctrl.rndforest <- makeTuneControlRandom(maxit = 100)
+tune.ctrl.rndforest <- makeTuneControlRandom(maxit = 2)
 
 tuned.lrn.rndforest <- makeTuneWrapper(lrn.rndforest,
   par.set = ps.rndforest,
@@ -145,10 +145,10 @@ resample.instance.outer <- makeResampleInstance(desc = rdesc.outer, task = task)
 # ---------- Benchmark ----------
 bm <- benchmark(
   learners = list(
-    tuned.lrn.rndforest,
-    lrn.ranger,
-    tuned.lrn.xgboost,
-    tuned.lrn.gbm
+    tuned.lrn.rndforest
+    # lrn.ranger,
+    # tuned.lrn.xgboost,
+    # tuned.lrn.gbm
   ),
   tasks = task,
   resamplings = resample.instance.outer,
@@ -166,9 +166,9 @@ for (i in (1:4)) {
 
 # -------------- Train final model --------------
 # choose best learner:
-model <- mlr::train(learner = , task = task)
+model <- mlr::train(learner = tuned.lrn.rndforest , task = task)
 
-save(list = model, file = "my_final_model.rds")
+save(model, file = "my_final_model.rds")
 
 # load("my_final_model.rds")
 
@@ -185,3 +185,5 @@ testing <- testing[vars]
 
 # ---------- Prediction ----------
 pred <- predict(model, newdata = testing)
+
+pred

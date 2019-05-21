@@ -2,7 +2,9 @@
 title: "Course Assignment"
 author: "Moritz Körber"
 date: "15 Juli 2018"
-output: html_document
+output: 
+  html_document:
+    keep_md: true
 ---
 
 ```{r setup, include=FALSE}
@@ -30,7 +32,7 @@ set.seed(31)
 # 1. Inspect target variable
 First, I am looking at the target variable "classe":
 
-```{r echo=FALSE}
+```{r}
 # What is "classe"?
 glimpse(df$classe)
 ```
@@ -108,3 +110,155 @@ Save the cleaned data
 saveRDS(df, "1_data/cleaned_data.rds")
 ```
 
+
+# 3. Training
+The training is run on an Amazon AWS EC2 t2.2xlarge instance. More details on the environment:
+```{r echo = FALSE}
+# readRDS("sessionInfo.rds")
+```
+
+## Task
+```{r eval = FALSE}
+task <- makeClassifTask(id = "nike", data = df, target = "classe")
+```
+
+## Resampling
+I chose to use a nested cross validation strategy with a 5-fold inner cross validation and a 3-fold outer cross validation. The evaluation of the tuned learners is performed by 5-fold cross validation. 
+```{r eval = FALSE}
+# Inner resampling
+rdesc.inner <- makeResampleDesc("CV", iters = 5)
+```
+
+The best parameter combination is then evaluated against the remaining fold of the 3-fold outer cross validation.
+```{r eval = FALSE}
+# Outer resampling
+rdesc.outer <- makeResampleDesc(method = "CV", iters = 3)
+resample.instance.outer <- makeResampleInstance(desc = rdesc.outer, task = task)
+```
+
+## Measures
+```{r eval = FALSE}
+measures <- list(mmce)
+```
+
+## Learners
+### Random forest
+```{r eval = FALSE}
+lrn.rndforest <- makePreprocWrapperCaret("classif.randomForest", ppc.center = T, ppc.scale = T)
+
+ps.rndforest <- makeParamSet(
+  makeIntegerParam("ntree", lower = 100, upper = 1000),
+  makeIntegerParam("mtry", lower = 5, upper = 20)
+  # makeLogicalParam("ppc.center"),
+  # makeLogicalParam("ppc.scale")
+)
+
+tune.ctrl.rndforest <- makeTuneControlRandom(maxit = 30)
+
+tuned.lrn.rndforest <- makeTuneWrapper(lrn.rndforest,
+  par.set = ps.rndforest,
+  resampling = rdesc.inner,
+  control = tune.ctrl.rndforest
+)
+```
+
+### Xgboost
+```{r eval = FALSE}
+lrn.xgboost <- makePreprocWrapperCaret("classif.xgboost", ppc.center = T, ppc.scale = T)
+
+ps.xgboost <- makeParamSet(
+  makeNumericParam("eta", lower = 0, upper = 0.5),
+  makeNumericParam("colsample_bytree", lower = 0.5, upper = 0.9),
+  makeNumericParam("gamma", lower = 0, upper = 2),
+  makeIntegerParam("max_depth", lower = 4, upper = 10),
+  makeIntegerParam("nrounds", lower = 500, upper = 1500)
+)
+
+tune.ctrl.xgboost <- makeTuneControlRandom(maxit = 30)
+
+tuned.lrn.xgboost <- makeTuneWrapper(lrn.xgboost,
+  par.set = ps.xgboost,
+  resampling = rdesc.inner,
+  control = tune.ctrl.xgboost
+)
+```
+
+### Ranger
+```{r eval = FALSE}
+lrn.ranger <- makePreprocWrapperCaret("classif.ranger", ppc.center = T, ppc.scale = T)
+```
+
+### Gbm
+```{r eval = FALSE}
+lrn.gbm <- makePreprocWrapperCaret("classif.gbm", ppc.center = T, ppc.scale = T)
+
+ps.gbm <- makeParamSet(
+  makeIntegerParam("n.trees", lower = 100, upper = 1000),
+  makeIntegerParam("interaction.depth", lower = 5, upper = 20),
+  makeNumericParam("shrinkage", lower = 0, upper = 0.2)
+)
+
+tune.ctrl.gbm <- makeTuneControlRandom(maxit = 30)
+
+tuned.lrn.gbm <- makeTuneWrapper(lrn.gbm,
+  par.set = ps.gbm,
+  resampling = rdesc.inner,
+  control = tune.ctrl.gbm
+)
+```
+
+## Benchmark
+Compare the leaners' performance:
+```{r eval = FALSE}
+bm <- benchmark(
+  learners = list(
+    tuned.lrn.rndforest,
+    tuned.lrn.xgboost,
+    lrn.ranger,
+    tuned.lrn.gbm
+  ),
+  tasks = task,
+  resamplings = resample.instance.outer,
+  measures = measures
+)
+
+```
+```{r eval = FALSE}
+# readRDS("bm.rds")
+```
+```{r eval = FALSE}
+plotBMRBoxplots(bm)
+```
+```{r eval = FALSE}
+# readRDS("plots.rds")
+```
+
+XXX seems to be the best learner for this problem.
+
+# 4. Train final model
+```{r eval = FALSE}
+# choose best learner:
+model <- mlr::train(learner = , task = task)
+
+save(list = model, file = "my_final_model.rds")
+
+# load("my_final_model.rds")
+```
+
+# 5. Predict new data
+## Load new data
+```{r eval = FALSE}
+testing <- read.csv("1_data/pml-testing.csv", na.strings = c("NA", "NaN", "", "#DIV/0!"), row.names = 1)
+
+# make sure that they have the same columns (except target)
+df %>%
+  select(-classe) %>%
+  colnames() -> vars
+
+testing <- testing[vars]
+```
+
+## Prediction
+```{r eval = FALSE}
+pred <- predict(model, newdata = testing)
+```
