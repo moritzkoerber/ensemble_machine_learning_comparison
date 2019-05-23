@@ -1,7 +1,8 @@
 ---
 title: "Course Assignment"
 author: "Moritz Körber"
-date: "15 Juli 2018"
+test: "`r Sys.setlocale(locale = 'English')`"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
 output: 
   html_document:
     keep_md: true
@@ -18,12 +19,13 @@ library("dplyr")
 library("caret")
 library("mlr")
 library("visdat")
+library("data.table")
 ```
 
 Load data and set seed:
 
 ```{r}
-df <- read.csv("1_data/pml-training.csv", na.strings = c("NA", "NaN", "", "#DIV/0!"), row.names = 1)
+df <- fread("1_data/pml-training.csv", na.strings = c("NA", "NaN", "", "#DIV/0!"), drop = 1)
 
 set.seed(31)
 ```
@@ -42,7 +44,7 @@ Since it is a categorical variable, it is a classification problem. Hence, an al
 # 2. Clean the data set
 Remove obvious non-predictive variables:
 ```{r crop predictors without any information, echo=T}
-df %>% select(-c(raw_timestamp_part_1, raw_timestamp_part_2, cvtd_timestamp)) -> df
+df %>% select(-c(raw_timestamp_part_1, raw_timestamp_part_2, cvtd_timestamp, user_name)) -> df
 ```
 
 Remove zero variance/near zero variance predictors
@@ -50,7 +52,7 @@ Remove zero variance/near zero variance predictors
 nzv <- nearZeroVar(df)
 df <- df[-nzv]
 
-df <- removeConstantFeatures(df, perc = .02)
+df <- removeConstantFeatures(as.data.frame(df), perc = .02)
 ```
 
 Remove predictors with mostly NAs:

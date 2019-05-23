@@ -1,18 +1,23 @@
 ---
 title: "Course Assignment"
 author: "Moritz Körber"
-date: "Mai 23, 2019"
+date: "15 Juli 2018"
 output: 
   html_document:
     keep_md: true
 ---
 
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Background
 
 
+# Analysis
 First step: Load required packages.
 
-
-```r
+```{r message=FALSE, warning=FALSE}
 library("dplyr")
 library("caret")
 library("mlr")
@@ -22,8 +27,7 @@ library("data.table")
 
 Load data and set seed:
 
-
-```r
+```{r}
 df <- fread("1_data/pml-training.csv", na.strings = c("NA", "NaN", "", "#DIV/0!"), drop = 1)
 
 set.seed(31)
@@ -33,41 +37,29 @@ set.seed(31)
 # 1. Inspect target variable
 First, I am looking at the target variable "classe":
 
-
-```r
+```{r}
 # What is "classe"?
 glimpse(df$classe)
-```
-
-```
-##  chr [1:19622] "A" "A" "A" "A" "A" "A" "A" "A" "A" "A" "A" "A" "A" "A" ...
 ```
 
 Since it is a categorical variable, it is a classification problem. Hence, an algorithm like logistic regression, random forests, or a similar algorithm is suitable. 
 
 # 2. Clean the data set
 Remove obvious non-predictive variables:
-
-```r
-df %>% select(-c(raw_timestamp_part_1, raw_timestamp_part_2, cvtd_timestamp, user_name)) -> df
+```{r crop predictors without any information, echo=T}
+df %>% select(-c(raw_timestamp_part_1, raw_timestamp_part_2, cvtd_timestamp)) -> df
 ```
 
 Remove zero variance/near zero variance predictors
-
-```r
+```{r}
 nzv <- nearZeroVar(df)
 df <- df[-nzv]
 
-df <- removeConstantFeatures(as.data.frame(df), perc = .02)
-```
-
-```
-## Removing 19 columns: kurtosis_picth_belt,kurtosis_yaw_belt,skewness_roll_belt.1,skewness_yaw_belt,kurtosis_roll_arm,kurtosis_picth_arm,skewness_roll_arm,skewness_pitch_arm,kurtosis_yaw_dumbbell,skewness_yaw_dumbbell,kurtosis_roll_forearm,kurtosis_picth_forearm,kurtosis_yaw_forearm,skewness_roll_forearm,skewness_pitch_forearm,skewness_yaw_forearm,max_yaw_forearm,min_yaw_forearm,amplitude_yaw_forearm
+df <- removeConstantFeatures(df, perc = .02)
 ```
 
 Remove predictors with mostly NAs:
-
-```r
+```{r message=FALSE, warning=FALSE}
 df %>%
   select(everything()) %>%
   summarise_all(funs(sum(is.na(.)) / length(.))) -> p
@@ -76,144 +68,87 @@ df %>%
 vis_miss(df[which(p > 0.975)],
   sort_miss = TRUE, warn_large_data = F
 )
-```
 
-![](Assignment_files/figure-html/unnamed-chunk-5-1.png)<!-- -->
-
-```r
 # remove them if sensible
 df[which(p > 0.975)] <- NULL
 ```
 
 Remove highly correlated predictors
-
-```r
+```{r}
 nums <- select_if(df, is.numeric)
 descrCor <- cor(nums)
 
 highCorr <- sum(na.omit(abs(descrCor[upper.tri(descrCor)])) >= .98)
 
 na.omit(descrCor[upper.tri(descrCor)])[which(na.omit(abs(descrCor[upper.tri(descrCor)])) >= .98, arr.ind = TRUE)]
-```
 
-```
-## [1]  0.9808904 -0.9919987
-```
-
-```r
 which(na.omit(abs(descrCor)) >= .98 & na.omit(abs(descrCor)) < 1, arr.ind = TRUE)
-```
 
-```
-##                  row col
-## total_accel_belt   5   2
-## accel_belt_z      11   2
-## roll_belt          2   5
-## roll_belt          2  11
-```
-
-```r
 findCorrelation(na.omit(descrCor), cutoff = .98, verbose = T, exact = T, names = T)
-```
-
-```
-## Compare row 11  and column  2 with corr  0.992 
-##   Means:  0.266 vs 0.165 so flagging column 11 
-## Compare row 2  and column  5 with corr  0.981 
-##   Means:  0.246 vs 0.161 so flagging column 2 
-## All correlations <= 0.98
-```
-
-```
-## [1] "accel_belt_z" "roll_belt"
 ```
 
 There are two variables with high correlation --> consider in model evaluation! I will leave them in the dataset for this time.
 
 Find linear combinations:
-
-```r
+```{r}
 findLinearCombos(nums)
 ```
 
-```
-## $linearCombos
-## list()
-## 
-## $remove
-## NULL
-```
-
 Visualize the data:
-
-```r
+```{r}
 vis_dat(df, warn_large_data = F)
 ```
 
-![](Assignment_files/figure-html/unnamed-chunk-8-1.png)<!-- -->
-
 Are mixed data types in one variable?
-
-```r
+```{r}
 vis_guess(df)
 ```
 
-![](Assignment_files/figure-html/unnamed-chunk-9-1.png)<!-- -->
-
 Plot the features:
-
-```r
+```{r}
 nums <- unlist(lapply(df, is.numeric))
 featurePlot(x = df[nums], y = df$classe, plot = "strip")
 ```
 
-```
-## NULL
-```
-
 Save the cleaned data
-
-```r
+```{r eval = FALSE}
 saveRDS(df, "1_data/cleaned_data.rds")
 ```
 
 
 # 3. Training
 The training is run on an Amazon AWS EC2 t2.2xlarge instance. More details on the environment:
-
+```{r echo = FALSE}
+# readRDS("sessionInfo.rds")
+```
 
 ## Task
-
-```r
+```{r eval = FALSE}
 task <- makeClassifTask(id = "nike", data = df, target = "classe")
 ```
 
 ## Resampling
 I chose to use a nested cross validation strategy with a 5-fold inner cross validation and a 3-fold outer cross validation. The evaluation of the tuned learners is performed by 5-fold cross validation. 
-
-```r
+```{r eval = FALSE}
 # Inner resampling
 rdesc.inner <- makeResampleDesc("CV", iters = 5)
 ```
 
 The best parameter combination is then evaluated against the remaining fold of the 3-fold outer cross validation.
-
-```r
+```{r eval = FALSE}
 # Outer resampling
 rdesc.outer <- makeResampleDesc(method = "CV", iters = 3)
 resample.instance.outer <- makeResampleInstance(desc = rdesc.outer, task = task)
 ```
 
 ## Measures
-
-```r
+```{r eval = FALSE}
 measures <- list(mmce)
 ```
 
 ## Learners
 ### Random forest
-
-```r
+```{r eval = FALSE}
 lrn.rndforest <- makePreprocWrapperCaret("classif.randomForest", ppc.center = T, ppc.scale = T)
 
 ps.rndforest <- makeParamSet(
@@ -233,8 +168,7 @@ tuned.lrn.rndforest <- makeTuneWrapper(lrn.rndforest,
 ```
 
 ### Xgboost
-
-```r
+```{r eval = FALSE}
 lrn.xgboost <- makePreprocWrapperCaret("classif.xgboost", ppc.center = T, ppc.scale = T)
 
 ps.xgboost <- makeParamSet(
@@ -255,14 +189,12 @@ tuned.lrn.xgboost <- makeTuneWrapper(lrn.xgboost,
 ```
 
 ### Ranger
-
-```r
+```{r eval = FALSE}
 lrn.ranger <- makePreprocWrapperCaret("classif.ranger", ppc.center = T, ppc.scale = T)
 ```
 
 ### Gbm
-
-```r
+```{r eval = FALSE}
 lrn.gbm <- makePreprocWrapperCaret("classif.gbm", ppc.center = T, ppc.scale = T)
 
 ps.gbm <- makeParamSet(
@@ -282,8 +214,7 @@ tuned.lrn.gbm <- makeTuneWrapper(lrn.gbm,
 
 ## Benchmark
 Compare the leaners' performance:
-
-```r
+```{r eval = FALSE}
 bm <- benchmark(
   learners = list(
     tuned.lrn.rndforest,
@@ -295,25 +226,22 @@ bm <- benchmark(
   resamplings = resample.instance.outer,
   measures = measures
 )
-```
 
-```r
+```
+```{r eval = FALSE}
 # readRDS("bm.rds")
 ```
-
-```r
+```{r eval = FALSE}
 plotBMRBoxplots(bm)
 ```
-
-```r
+```{r eval = FALSE}
 # readRDS("plots.rds")
 ```
 
 XXX seems to be the best learner for this problem.
 
 # 4. Train final model
-
-```r
+```{r eval = FALSE}
 # choose best learner:
 model <- mlr::train(learner = , task = task)
 
@@ -324,8 +252,7 @@ save(list = model, file = "my_final_model.rds")
 
 # 5. Predict new data
 ## Load new data
-
-```r
+```{r eval = FALSE}
 testing <- read.csv("1_data/pml-testing.csv", na.strings = c("NA", "NaN", "", "#DIV/0!"), row.names = 1)
 
 # make sure that they have the same columns (except target)
@@ -337,7 +264,6 @@ testing <- testing[vars]
 ```
 
 ## Prediction
-
-```r
+```{r eval = FALSE}
 pred <- predict(model, newdata = testing)
 ```

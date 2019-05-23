@@ -3,15 +3,16 @@ library("dplyr")
 library("caret")
 library("mlr")
 library("visdat")
+library("data.table")
 
 # -------------- Read data --------------
-df <- read.csv("1_data/pml-training.csv", na.strings = c("NA", "NaN", "", "#DIV/0!"), row.names = 1)
+df <- fread("1_data/pml-training.csv", na.strings = c("NA", "NaN", "", "#DIV/0!"), drop = 1)
 
 set.seed(31)
 
 # -------------- Clean data set --------------
 # remove obvious non-predictive variables
-df %>% select(-c(raw_timestamp_part_1, raw_timestamp_part_2, cvtd_timestamp)) -> df
+df %>% select(-c(raw_timestamp_part_1, raw_timestamp_part_2, cvtd_timestamp, user_name)) -> df
 
 #  extract id for blocking
 # id <- df$user_name
@@ -21,7 +22,7 @@ df %>% select(-c(raw_timestamp_part_1, raw_timestamp_part_2, cvtd_timestamp)) ->
 nzv <- nearZeroVar(df)
 df <- df[-nzv]
 
-df <- removeConstantFeatures(df, perc = .02)
+df <- removeConstantFeatures(as.data.frame(df), perc = .02)
 
 # crop predictors with mostly NAs
 df %>%
@@ -166,7 +167,7 @@ for (i in (1:4)) {
 
 # -------------- Train final model --------------
 # choose best learner:
-model <- mlr::train(learner = tuned.lrn.rndforest , task = task)
+model <- mlr::train(learner = tuned.lrn.rndforest, task = task)
 
 save(model, file = "my_final_model.rds")
 
