@@ -1,21 +1,22 @@
 ---
-title: "Course Assignment"
+title: "Prediction of the quality of physical exercise on the basis of accelerometer data"
 author: "Moritz Körber"
-date: "15 Juli 2018"
+test: "`r Sys.setlocale(locale = 'English')`"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
 output: 
   html_document:
     keep_md: true
 ---
 
+# Background
+
+Going to the gym, whether to boost your health, lose weight or simply because it's fun, is certainly a worthwile activity. [FiveThirtyEight](https://fivethirtyeight.com/features/its-easier-than-ever-to-get-the-recommended-amount-of-exercise/) recently reported that according to the latest *Physical Activity Guidelines for Americans*, every form of activity counts. However, if you have eager goals, not only quantity but also quality and being efficient matters. In this project, I predict whether a certain exercise, a barbell lift, was well or sloppily executed on the basis of data obtained from accelerometers on the belt, forearm, arm, and dumbell of six participants. The participants performed the exercises correctly and incorrectly in five different ways. The idea for this analysis stems from the Coursera course *Practical Machine Learning* by Johns Hopkins University. The data for this project come from [http://groupware.les.inf.puc-rio.br/har](http://groupware.les.inf.puc-rio.br/har).
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-# Background
-
-
-# Analysis
-First step: Load required packages.
+First step: Load required packages:
 
 ```{r message=FALSE, warning=FALSE}
 library("dplyr")
@@ -33,33 +34,39 @@ df <- fread("1_data/pml-training.csv", na.strings = c("NA", "NaN", "", "#DIV/0!"
 set.seed(31)
 ```
 
-
 # 1. Inspect target variable
 First, I am looking at the target variable "classe":
 
 ```{r}
-# What is "classe"?
 glimpse(df$classe)
 ```
 
-Since it is a categorical variable, it is a classification problem. Hence, an algorithm like logistic regression, random forests, or a similar algorithm is suitable. 
+Since it is a categorical variable, it is a classification problem. Hence, an algorithm like logistic regression, random forests, or a similar algorithm is suitable. Let's check if the classes are balanced:
+
+```{r}
+ggplot(df, aes(x = classe)) +
+  geom_bar(stat = "count") +
+  theme_classic()
+
+count(df, classe)
+```
 
 # 2. Clean the data set
 Remove obvious non-predictive variables:
-```{r crop predictors without any information, echo=T}
-df %>% select(-c(raw_timestamp_part_1, raw_timestamp_part_2, cvtd_timestamp)) -> df
+```{r crop predictors without any information, echo = T}
+df %>% select(-c(raw_timestamp_part_1, raw_timestamp_part_2, cvtd_timestamp, user_name)) -> df
 ```
 
-Remove zero variance/near zero variance predictors
+Remove zero variance/near zero variance predictors:
 ```{r}
 nzv <- nearZeroVar(df)
 df <- df[-nzv]
 
-df <- removeConstantFeatures(df, perc = .02)
+df <- removeConstantFeatures(as.data.frame(df), perc = .02)
 ```
 
 Remove predictors with mostly NAs:
-```{r message=FALSE, warning=FALSE}
+```{r}
 df %>%
   select(everything()) %>%
   summarise_all(funs(sum(is.na(.)) / length(.))) -> p
@@ -73,7 +80,7 @@ vis_miss(df[which(p > 0.975)],
 df[which(p > 0.975)] <- NULL
 ```
 
-Remove highly correlated predictors
+Remove highly correlated predictors:
 ```{r}
 nums <- select_if(df, is.numeric)
 descrCor <- cor(nums)
@@ -87,7 +94,7 @@ which(na.omit(abs(descrCor)) >= .98 & na.omit(abs(descrCor)) < 1, arr.ind = TRUE
 findCorrelation(na.omit(descrCor), cutoff = .98, verbose = T, exact = T, names = T)
 ```
 
-There are two variables with high correlation --> consider in model evaluation! I will leave them in the dataset for this time.
+There are two variables with high correlation. I will leave them in the dataset for this time.
 
 Find linear combinations:
 ```{r}
@@ -99,7 +106,7 @@ Visualize the data:
 vis_dat(df, warn_large_data = F)
 ```
 
-Are mixed data types in one variable?
+Are there mixed data types in one variable?
 ```{r}
 vis_guess(df)
 ```
@@ -110,43 +117,43 @@ nums <- unlist(lapply(df, is.numeric))
 featurePlot(x = df[nums], y = df$classe, plot = "strip")
 ```
 
-Save the cleaned data
+Save the cleaned data:
 ```{r eval = FALSE}
 saveRDS(df, "1_data/cleaned_data.rds")
 ```
 
-
 # 3. Training
 The training is run on an Amazon AWS EC2 t2.2xlarge instance. More details on the environment:
 ```{r echo = FALSE}
-# readRDS("sessionInfo.rds")
+readRDS("sessionInfo.rds")
 ```
 
 ## Task
-```{r eval = FALSE}
-task <- makeClassifTask(id = "nike", data = df, target = "classe")
+```{r}
+task <- makeClassifTask(id = "fitness.tracker", data = df, target = "classe")
 ```
 
 ## Resampling
 I chose to use a nested cross validation strategy with a 5-fold inner cross validation and a 3-fold outer cross validation. The evaluation of the tuned learners is performed by 5-fold cross validation. 
-```{r eval = FALSE}
-# Inner resampling
+```{r}
 rdesc.inner <- makeResampleDesc("CV", iters = 5)
 ```
 
 The best parameter combination is then evaluated against the remaining fold of the 3-fold outer cross validation.
-```{r eval = FALSE}
-# Outer resampling
+```{r}
 rdesc.outer <- makeResampleDesc(method = "CV", iters = 3)
 resample.instance.outer <- makeResampleInstance(desc = rdesc.outer, task = task)
 ```
 
 ## Measures
-```{r eval = FALSE}
+The mean misclassification error is one of the most important metrics in classification problems.
+```{r}
 measures <- list(mmce)
 ```
 
 ## Learners
+I compare the performance of three different learners. Each learner's hyperparameters are tuned in this evaluation process. For preprocessing, I center and scale the features.
+
 ### Random forest
 ```{r eval = FALSE}
 lrn.rndforest <- makePreprocWrapperCaret("classif.randomForest", ppc.center = T, ppc.scale = T)
@@ -154,8 +161,6 @@ lrn.rndforest <- makePreprocWrapperCaret("classif.randomForest", ppc.center = T,
 ps.rndforest <- makeParamSet(
   makeIntegerParam("ntree", lower = 100, upper = 1000),
   makeIntegerParam("mtry", lower = 5, upper = 20)
-  # makeLogicalParam("ppc.center"),
-  # makeLogicalParam("ppc.scale")
 )
 
 tune.ctrl.rndforest <- makeTuneControlRandom(maxit = 30)
@@ -167,8 +172,8 @@ tuned.lrn.rndforest <- makeTuneWrapper(lrn.rndforest,
 )
 ```
 
-### Xgboost
-```{r eval = FALSE}
+### XGBoost
+```{r echo = F}
 lrn.xgboost <- makePreprocWrapperCaret("classif.xgboost", ppc.center = T, ppc.scale = T)
 
 ps.xgboost <- makeParamSet(
@@ -193,25 +198,6 @@ tuned.lrn.xgboost <- makeTuneWrapper(lrn.xgboost,
 lrn.ranger <- makePreprocWrapperCaret("classif.ranger", ppc.center = T, ppc.scale = T)
 ```
 
-### Gbm
-```{r eval = FALSE}
-lrn.gbm <- makePreprocWrapperCaret("classif.gbm", ppc.center = T, ppc.scale = T)
-
-ps.gbm <- makeParamSet(
-  makeIntegerParam("n.trees", lower = 100, upper = 1000),
-  makeIntegerParam("interaction.depth", lower = 5, upper = 20),
-  makeNumericParam("shrinkage", lower = 0, upper = 0.2)
-)
-
-tune.ctrl.gbm <- makeTuneControlRandom(maxit = 30)
-
-tuned.lrn.gbm <- makeTuneWrapper(lrn.gbm,
-  par.set = ps.gbm,
-  resampling = rdesc.inner,
-  control = tune.ctrl.gbm
-)
-```
-
 ## Benchmark
 Compare the leaners' performance:
 ```{r eval = FALSE}
@@ -219,43 +205,38 @@ bm <- benchmark(
   learners = list(
     tuned.lrn.rndforest,
     tuned.lrn.xgboost,
-    lrn.ranger,
-    tuned.lrn.gbm
+    lrn.ranger
   ),
   tasks = task,
   resamplings = resample.instance.outer,
   measures = measures
 )
-
 ```
-```{r eval = FALSE}
-# readRDS("bm.rds")
+```{r echo = FALSE}
+readRDS("bm.rds")
 ```
 ```{r eval = FALSE}
 plotBMRBoxplots(bm)
 ```
-```{r eval = FALSE}
-# readRDS("plots.rds")
+```{r echo=FALSE}
+readRDS("bmplot.rds")
 ```
 
-XXX seems to be the best learner for this problem.
+XGBoost seems to be the best learner for this problem. Thus, I choose it to train my final model on the whole data set.
 
 # 4. Train final model
-```{r eval = FALSE}
-# choose best learner:
-model <- mlr::train(learner = , task = task)
+```{r}
+model <- mlr::train(learner = tuned.lrn.xgboost, task = task)
 
-save(list = model, file = "my_final_model.rds")
-
-# load("my_final_model.rds")
+save(model, file = "model.rds")
 ```
 
-# 5. Predict new data
-## Load new data
-```{r eval = FALSE}
+# 5. Predict the test data
+## Load and prepare test data
+```{r}
 testing <- read.csv("1_data/pml-testing.csv", na.strings = c("NA", "NaN", "", "#DIV/0!"), row.names = 1)
 
-# make sure that they have the same columns (except target)
+# make sure that they have the same columns (except the target)
 df %>%
   select(-classe) %>%
   colnames() -> vars
@@ -264,6 +245,9 @@ testing <- testing[vars]
 ```
 
 ## Prediction
-```{r eval = FALSE}
-pred <- predict(model, newdata = testing)
+Lastly, I predict the test data.
+```{r}
+pred <- predict(model, testing)
+
+pred
 ```

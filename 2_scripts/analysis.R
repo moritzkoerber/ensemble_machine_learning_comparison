@@ -20,7 +20,7 @@ df %>% select(-c(raw_timestamp_part_1, raw_timestamp_part_2, cvtd_timestamp, use
 
 # remove zero variance/near zero variance predictors
 nzv <- nearZeroVar(df)
-df <- df[-nzv]
+df <- df[, -..nzv]
 
 df <- removeConstantFeatures(as.data.frame(df), perc = .02)
 
@@ -72,10 +72,10 @@ featurePlot(x = df[nums], y = df$classe, plot = "strip")
 
 # -------------- Training --------------
 # ---------- Task ----------
-task <- makeClassifTask(id = "nike", data = df, target = "classe")
+task <- makeClassifTask(id = "fitness.tracker", data = df, target = "classe")
 
 # ---------- Inner resampling ----------
-rdesc.inner <- makeResampleDesc("CV", iters = 10)
+rdesc.inner <- makeResampleDesc("CV", iters = 5)
 
 # ---------- Measures ----------
 measures <- list(mmce)
@@ -91,7 +91,7 @@ ps.rndforest <- makeParamSet(
   # makeLogicalParam("ppc.scale")
 )
 
-tune.ctrl.rndforest <- makeTuneControlRandom(maxit = 2)
+tune.ctrl.rndforest <- makeTuneControlRandom(maxit = 30)
 
 tuned.lrn.rndforest <- makeTuneWrapper(lrn.rndforest,
   par.set = ps.rndforest,
@@ -110,7 +110,7 @@ ps.xgboost <- makeParamSet(
   makeIntegerParam("nrounds", lower = 1000, upper = 5000)
 )
 
-tune.ctrl.xgboost <- makeTuneControlRandom(maxit = 100)
+tune.ctrl.xgboost <- makeTuneControlRandom(maxit = 30)
 
 tuned.lrn.xgboost <- makeTuneWrapper(lrn.xgboost,
   par.set = ps.xgboost,
@@ -130,7 +130,7 @@ ps.gbm <- makeParamSet(
   makeNumericParam("shrinkage", lower = 0, upper = 0.2)
 )
 
-tune.ctrl.gbm <- makeTuneControlRandom(maxit = 100)
+tune.ctrl.gbm <- makeTuneControlRandom(maxit = 30)
 
 tuned.lrn.gbm <- makeTuneWrapper(lrn.gbm,
   par.set = ps.gbm,
@@ -140,16 +140,16 @@ tuned.lrn.gbm <- makeTuneWrapper(lrn.gbm,
 
 # ---------- Outer resampling ----------
 # (each learner is evaluated with that one)
-rdesc.outer <- makeResampleDesc(method = "CV", iters = 5)
+rdesc.outer <- makeResampleDesc(method = "CV", iters = 3)
 resample.instance.outer <- makeResampleInstance(desc = rdesc.outer, task = task)
 
 # ---------- Benchmark ----------
 bm <- benchmark(
   learners = list(
-    tuned.lrn.rndforest
-    # lrn.ranger,
-    # tuned.lrn.xgboost,
-    # tuned.lrn.gbm
+    tuned.lrn.rndforest,
+    lrn.ranger,
+    tuned.lrn.xgboost,
+    tuned.lrn.gbm
   ),
   tasks = task,
   resamplings = resample.instance.outer,
@@ -169,9 +169,7 @@ for (i in (1:4)) {
 # choose best learner:
 model <- mlr::train(learner = tuned.lrn.rndforest, task = task)
 
-save(model, file = "my_final_model.rds")
-
-# load("my_final_model.rds")
+save(model, file = "model.rds")
 
 # -------------- Predict new data --------------
 # ---------- Load new data ----------
@@ -185,6 +183,6 @@ df %>%
 testing <- testing[vars]
 
 # ---------- Prediction ----------
-pred <- predict(model, newdata = testing)
+pred <- predict(model, testing)
 
 pred

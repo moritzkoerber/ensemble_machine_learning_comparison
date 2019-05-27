@@ -1,7 +1,8 @@
 ---
 title: "Course Assignment"
 author: "Moritz Körber"
-date: "Mai 23, 2019"
+test: "LC_COLLATE=English_United States.1252;LC_CTYPE=English_United States.1252;LC_MONETARY=English_United States.1252;LC_NUMERIC=C;LC_TIME=English_United States.1252"
+date: "May 23, 2019"
 output: 
   html_document:
     keep_md: true
