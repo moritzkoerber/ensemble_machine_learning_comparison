@@ -121,23 +121,6 @@ tuned.lrn.xgboost <- makeTuneWrapper(lrn.xgboost,
 # ------- Ranger -------
 lrn.ranger <- makePreprocWrapperCaret("classif.ranger", ppc.center = T, ppc.scale = T)
 
-# ------- Gbm -------
-lrn.gbm <- makePreprocWrapperCaret("classif.gbm", ppc.center = T, ppc.scale = T)
-
-ps.gbm <- makeParamSet(
-  makeIntegerParam("n.trees", lower = 100, upper = 1500),
-  makeIntegerParam("interaction.depth", lower = 5, upper = 20),
-  makeNumericParam("shrinkage", lower = 0, upper = 0.2)
-)
-
-tune.ctrl.gbm <- makeTuneControlRandom(maxit = 30)
-
-tuned.lrn.gbm <- makeTuneWrapper(lrn.gbm,
-  par.set = ps.gbm,
-  resampling = rdesc.inner,
-  control = tune.ctrl.gbm
-)
-
 # ---------- Outer resampling ----------
 # (each learner is evaluated with that one)
 rdesc.outer <- makeResampleDesc(method = "CV", iters = 3)
@@ -148,8 +131,7 @@ bm <- benchmark(
   learners = list(
     tuned.lrn.rndforest,
     lrn.ranger,
-    tuned.lrn.xgboost,
-    tuned.lrn.gbm
+    tuned.lrn.xgboost
   ),
   tasks = task,
   resamplings = resample.instance.outer,
@@ -161,13 +143,13 @@ bm
 plotBMRBoxplots(bm)
 
 # confusion matrix
-for (i in (1:4)) {
+for (i in (1:3)) {
   print(calculateConfusionMatrix(bm$results$nike[[i]][7]$pred))
 }
 
 # -------------- Train final model --------------
 # choose best learner:
-model <- mlr::train(learner = tuned.lrn.rndforest, task = task)
+model <- mlr::train(learner = tuned.lrn.xgboost, task = task)
 
 save(model, file = "model.rds")
 
