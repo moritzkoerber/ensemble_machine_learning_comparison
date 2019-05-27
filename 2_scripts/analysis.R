@@ -75,29 +75,29 @@ featurePlot(x = df[nums], y = df$classe, plot = "strip")
 task <- makeClassifTask(id = "fitness.tracker", data = df, target = "classe")
 
 # ---------- Inner resampling ----------
-rdesc.inner <- makeResampleDesc("CV", iters = 5)
+rdesc.inner <- makeResampleDesc("CV", iters = 1)
 
 # ---------- Measures ----------
 measures <- list(mmce)
 
 # ---------- Learners ----------
 # ------- Random forest -------
-lrn.rndforest <- makePreprocWrapperCaret("classif.randomForest", ppc.center = T, ppc.scale = T)
-
-ps.rndforest <- makeParamSet(
-  makeIntegerParam("ntree", lower = 100, upper = 1000),
-  makeIntegerParam("mtry", lower = 5, upper = 20)
-  # makeLogicalParam("ppc.center"),
-  # makeLogicalParam("ppc.scale")
-)
-
-tune.ctrl.rndforest <- makeTuneControlRandom(maxit = 30)
-
-tuned.lrn.rndforest <- makeTuneWrapper(lrn.rndforest,
-  par.set = ps.rndforest,
-  resampling = rdesc.inner,
-  control = tune.ctrl.rndforest
-)
+# lrn.rndforest <- makePreprocWrapperCaret("classif.randomForest", ppc.center = T, ppc.scale = T)
+# 
+# ps.rndforest <- makeParamSet(
+#   makeIntegerParam("ntree", lower = 100, upper = 1000),
+#   makeIntegerParam("mtry", lower = 5, upper = 20)
+#   # makeLogicalParam("ppc.center"),
+#   # makeLogicalParam("ppc.scale")
+# )
+# 
+# tune.ctrl.rndforest <- makeTuneControlRandom(maxit = 30)
+# 
+# tuned.lrn.rndforest <- makeTuneWrapper(lrn.rndforest,
+#   par.set = ps.rndforest,
+#   resampling = rdesc.inner,
+#   control = tune.ctrl.rndforest
+# )
 
 # ------- Xgboost -------
 lrn.xgboost <- makePreprocWrapperCaret("classif.xgboost", ppc.center = T, ppc.scale = T)
@@ -110,7 +110,7 @@ ps.xgboost <- makeParamSet(
   makeIntegerParam("nrounds", lower = 500, upper = 1500)
 )
 
-tune.ctrl.xgboost <- makeTuneControlRandom(maxit = 30)
+tune.ctrl.xgboost <- makeTuneControlRandom(maxit = 1)
 
 tuned.lrn.xgboost <- makeTuneWrapper(lrn.xgboost,
   par.set = ps.xgboost,
@@ -118,44 +118,44 @@ tuned.lrn.xgboost <- makeTuneWrapper(lrn.xgboost,
   control = tune.ctrl.xgboost
 )
 
-# ------- Ranger -------
-lrn.ranger <- makePreprocWrapperCaret("classif.ranger", ppc.center = T, ppc.scale = T)
-
+# # ------- Ranger -------
+# lrn.ranger <- makePreprocWrapperCaret("classif.ranger", ppc.center = T, ppc.scale = T)
+# 
 # ---------- Outer resampling ----------
-# (each learner is evaluated with that one)
-rdesc.outer <- makeResampleDesc(method = "CV", iters = 3)
+rdesc.outer <- makeResampleDesc(method = "CV", iters = 1)
 resample.instance.outer <- makeResampleInstance(desc = rdesc.outer, task = task)
-
-# ---------- Benchmark ----------
-bm <- benchmark(
-  learners = list(
-    tuned.lrn.rndforest,
-    lrn.ranger,
-    tuned.lrn.xgboost
-  ),
-  tasks = task,
-  resamplings = resample.instance.outer,
-  measures = measures
-)
-
-bm
-
-plotBMRBoxplots(bm)
-
-# confusion matrix
-for (i in (1:3)) {
-  print(calculateConfusionMatrix(bm$results$nike[[i]][7]$pred))
-}
+# 
+# # ---------- Benchmark ----------
+# bm <- benchmark(
+#   learners = list(
+#     tuned.lrn.rndforest,
+#     lrn.ranger,
+#     tuned.lrn.xgboost
+#   ),
+#   tasks = task,
+#   resamplings = resample.instance.outer,
+#   measures = measures
+# )
+# 
+# bm
+# 
+# plotBMRBoxplots(bm)
+# 
+# # confusion matrix
+# for (i in (1:3)) {
+#   print(calculateConfusionMatrix(bm$results$nike[[i]][7]$pred))
+# }
 
 # -------------- Train final model --------------
 # choose best learner:
 model <- mlr::train(learner = tuned.lrn.xgboost, task = task)
 
-save(model, file = "model.rds")
+saveRDS(model, "model.rds")
 
 # -------------- Predict new data --------------
 # ---------- Load new data ----------
 testing <- read.csv("1_data/pml-testing.csv", na.strings = c("NA", "NaN", "", "#DIV/0!"), row.names = 1)
+
 
 # make sure that they have the same columns (except target)
 df %>%
@@ -165,6 +165,6 @@ df %>%
 testing <- testing[vars]
 
 # ---------- Prediction ----------
-pred <- predict(model, testing)
+pred <- predict(model, newdata = testing)
 
 pred

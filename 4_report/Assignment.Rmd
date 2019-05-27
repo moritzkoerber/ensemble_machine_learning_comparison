@@ -227,7 +227,7 @@ XGBoost seems to be the best learner for this problem. Thus, I choose it to trai
 ```{r}
 model <- mlr::train(learner = tuned.lrn.xgboost, task = task)
 
-save(model, file = "model.rds")
+saveRDS(model, "model.rds")
 ```
 
 # 5. Predict the test data
@@ -246,7 +246,7 @@ testing <- testing[vars]
 ## Prediction
 Lastly, I predict the test data.
 ```{r}
-pred <- predict(model, testing)
+pred <- predict(model, newdata = testing)
 
 pred
 ```
