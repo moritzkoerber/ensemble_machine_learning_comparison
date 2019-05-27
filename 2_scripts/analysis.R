@@ -85,7 +85,7 @@ measures <- list(mmce)
 lrn.rndforest <- makePreprocWrapperCaret("classif.randomForest", ppc.center = T, ppc.scale = T)
 
 ps.rndforest <- makeParamSet(
-  makeIntegerParam("ntree", lower = 1, upper = 2),
+  makeIntegerParam("ntree", lower = 100, upper = 1000),
   makeIntegerParam("mtry", lower = 5, upper = 20)
   # makeLogicalParam("ppc.center"),
   # makeLogicalParam("ppc.scale")
@@ -107,7 +107,7 @@ ps.xgboost <- makeParamSet(
   makeNumericParam("colsample_bytree", lower = 0.5, upper = 0.9),
   makeNumericParam("gamma", lower = 0, upper = 2),
   makeIntegerParam("max_depth", lower = 4, upper = 10),
-  makeIntegerParam("nrounds", lower = 1000, upper = 5000)
+  makeIntegerParam("nrounds", lower = 500, upper = 1500)
 )
 
 tune.ctrl.xgboost <- makeTuneControlRandom(maxit = 30)
