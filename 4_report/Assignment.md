@@ -384,8 +384,9 @@ XGBoost seems to be the best learner for this problem. Thus, I choose it to trai
 ```r
 model <- mlr::train(learner = tuned.lrn.xgboost, task = task)
 
-saveRDS(model, "model.rds")
+saveRDS(model, "1_data/model.rds")
 ```
+
 
 # 5. Predict the test data
 ## Load and prepare test data

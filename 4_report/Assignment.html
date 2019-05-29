@@ -618,7 +618,7 @@ tuned.lrn.xgboost &lt;- makeTuneWrapper(lrn.xgboost,
 <h1>4. Train final model</h1>
 <pre class="r"><code>model &lt;- mlr::train(learner = tuned.lrn.xgboost, task = task)
 
-saveRDS(model, &quot;model.rds&quot;)</code></pre>
+saveRDS(model, &quot;1_data/model.rds&quot;)</code></pre>
 </div>
 <div id="predict-the-test-data" class="section level1">
 <h1>5. Predict the test data</h1>

@@ -121,7 +121,7 @@ saveRDS(df, "1_data/cleaned_data.rds")
 # 3. Training
 The training is run on an Amazon AWS EC2 t2.2xlarge instance. More details on the environment:
 ```{r echo = FALSE}
-readRDS("sessionInfo.rds")
+readRDS("1_data/sessionInfo.rds")
 ```
 
 ## Task
@@ -211,7 +211,7 @@ bm <- benchmark(
 ```
 
 ```{r echo = FALSE}
-readRDS("bm.rds")
+readRDS("1_data/bm.rds")
 ```
 
 ```{r eval = FALSE}
@@ -219,7 +219,7 @@ plotBMRBoxplots(bm)
 ```
 
 ```{r echo=FALSE}
-readRDS("bmplot.rds")
+readRDS("1_data/bmplot.rds")
 ```
 
 XGBoost seems to be the best learner for this problem. Thus, I choose it to train my final model on the whole data set.
@@ -228,10 +228,11 @@ XGBoost seems to be the best learner for this problem. Thus, I choose it to trai
 ```{r  eval = FALSE}
 model <- mlr::train(learner = tuned.lrn.xgboost, task = task)
 
-saveRDS(model, "model.rds")
+saveRDS(model, "1_data/model.rds")
 ```
+
 ```{r include=FALSE}
-model <- readRDS("model.rds")
+model <- readRDS("1_data/model.rds")
 
 ```
 # 5. Predict the test data
