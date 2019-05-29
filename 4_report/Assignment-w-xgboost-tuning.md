@@ -1,8 +1,8 @@
 ---
-title: "Prediction of the quality of physical exercise on the basis of accelerometer data"
+title: "Course Assignment"
 author: "Moritz Körber"
 test: "LC_COLLATE=English_United States.1252;LC_CTYPE=English_United States.1252;LC_MONETARY=English_United States.1252;LC_NUMERIC=C;LC_TIME=English_United States.1252"
-date: "May 29, 2019"
+date: "May 28, 2019"
 output: 
   html_document:
     keep_md: true
@@ -42,7 +42,7 @@ glimpse(df$classe)
 ##  chr [1:19622] "A" "A" "A" "A" "A" "A" "A" "A" "A" "A" "A" "A" "A" "A" ...
 ```
 
-Since it is a categorical variable, it is a classification problem. Hence, an algorithm like logistic regression, random forest, or a similar algorithm is suitable. Let's check if the classes are balanced:
+Since it is a categorical variable, it is a classification problem. Hence, an algorithm like logistic regression, random forests, or a similar algorithm is suitable. Let's check if the classes are balanced:
 
 
 ```r
@@ -201,7 +201,7 @@ Plot the features:
 
 ```r
 nums <- unlist(lapply(df, is.numeric))
-featurePlot(x = as.data.frame(df)[nums], y = df$classe, plot = "strip")
+featurePlot(x = df[nums], y = df$classe, plot = "strip")
 ```
 
 ```
@@ -262,20 +262,19 @@ The training is run on an Amazon AWS EC2 t2.2xlarge instance. More details on th
 ```
 
 ## Task
-Create the learning task:
 
 ```r
 task <- makeClassifTask(id = "fitness.tracker", data = df, target = "classe")
 ```
 
 ## Resampling
-I chose to use a nested cross validation strategy with a 5-fold inner cross validation and a 3-fold outer cross validation. The evaluation of the tuned learners is performed by 5-fold cross validation in the inner cross validation:
+I chose to use a nested cross validation strategy with a 5-fold inner cross validation and a 3-fold outer cross validation. The evaluation of the tuned learners is performed by 5-fold cross validation. 
 
 ```r
 rdesc.inner <- makeResampleDesc("CV", iters = 5)
 ```
 
-The best parameter combination is then evaluated against the remaining fold of the 3-fold outer cross validation:
+The best parameter combination is then evaluated against the remaining fold of the 3-fold outer cross validation.
 
 ```r
 rdesc.outer <- makeResampleDesc(method = "CV", iters = 3)
@@ -283,7 +282,7 @@ resample.instance.outer <- makeResampleInstance(desc = rdesc.outer, task = task)
 ```
 
 ## Measures
-The mean misclassification error is one of the most important metrics in classification problems and is chosen here to measure the learners' performance:
+The mean misclassification error is one of the most important metrics in classification problems.
 
 ```r
 measures <- list(mmce)
@@ -383,7 +382,274 @@ XGBoost seems to be the best learner for this problem. Thus, I choose it to trai
 
 ```r
 model <- mlr::train(learner = tuned.lrn.xgboost, task = task)
+```
 
+```
+## [Tune] Started tuning learner classif.xgboost.preproc for parameter set:
+```
+
+```
+##                     Type len Def         Constr Req Tunable Trafo
+## eta              numeric   -   -       0 to 0.5   -    TRUE     -
+## colsample_bytree numeric   -   -     0.5 to 0.9   -    TRUE     -
+## gamma            numeric   -   -         0 to 2   -    TRUE     -
+## max_depth        integer   -   -        4 to 10   -    TRUE     -
+## nrounds          integer   -   - 500 to 1.5e+03   -    TRUE     -
+```
+
+```
+## With control class: TuneControlRandom
+```
+
+```
+## Imputation value: 1
+```
+
+```
+## [Tune-x] 1: eta=0.372; colsample_bytree=0.86; gamma=0.0324; max_depth=6; nrounds=704
+```
+
+```
+## [Tune-y] 1: mmce.test.mean=0.0003567; time: 10.5 min
+```
+
+```
+## [Tune-x] 2: eta=0.409; colsample_bytree=0.619; gamma=1.57; max_depth=10; nrounds=802
+```
+
+```
+## [Tune-y] 2: mmce.test.mean=0.0008664; time: 19.1 min
+```
+
+```
+## [Tune-x] 3: eta=0.421; colsample_bytree=0.75; gamma=0.512; max_depth=6; nrounds=735
+```
+
+```
+## [Tune-y] 3: mmce.test.mean=0.0004587; time: 13.0 min
+```
+
+```
+## [Tune-x] 4: eta=0.256; colsample_bytree=0.848; gamma=1.64; max_depth=7; nrounds=584
+```
+
+```
+## [Tune-y] 4: mmce.test.mean=0.0008154; time: 13.5 min
+```
+
+```
+## [Tune-x] 5: eta=0.0331; colsample_bytree=0.749; gamma=0.125; max_depth=5; nrounds=1178
+```
+
+```
+## [Tune-y] 5: mmce.test.mean=0.0003058; time: 13.5 min
+```
+
+```
+## [Tune-x] 6: eta=0.488; colsample_bytree=0.751; gamma=1.08; max_depth=6; nrounds=508
+```
+
+```
+## [Tune-y] 6: mmce.test.mean=0.0008663; time: 6.7 min
+```
+
+```
+## [Tune-x] 7: eta=0.0114; colsample_bytree=0.676; gamma=0.168; max_depth=5; nrounds=516
+```
+
+```
+## [Tune-y] 7: mmce.test.mean=0.0077973; time: 5.5 min
+```
+
+```
+## [Tune-x] 8: eta=0.205; colsample_bytree=0.824; gamma=0.564; max_depth=9; nrounds=1161
+```
+
+```
+## [Tune-y] 8: mmce.test.mean=0.0004587; time: 22.2 min
+```
+
+```
+## [Tune-x] 9: eta=0.434; colsample_bytree=0.657; gamma=1.09; max_depth=5; nrounds=1343
+```
+
+```
+## [Tune-y] 9: mmce.test.mean=0.0005096; time: 13.8 min
+```
+
+```
+## [Tune-x] 10: eta=0.0253; colsample_bytree=0.849; gamma=0.582; max_depth=4; nrounds=1479
+```
+
+```
+## [Tune-y] 10: mmce.test.mean=0.0005096; time: 15.2 min
+```
+
+```
+## [Tune-x] 11: eta=0.365; colsample_bytree=0.618; gamma=0.545; max_depth=7; nrounds=658
+```
+
+```
+## [Tune-y] 11: mmce.test.mean=0.0003567; time: 12.5 min
+```
+
+```
+## [Tune-x] 12: eta=0.335; colsample_bytree=0.624; gamma=1.19; max_depth=7; nrounds=800
+```
+
+```
+## [Tune-y] 12: mmce.test.mean=0.0004077; time: 14.1 min
+```
+
+```
+## [Tune-x] 13: eta=0.0337; colsample_bytree=0.88; gamma=0.496; max_depth=7; nrounds=819
+```
+
+```
+## [Tune-y] 13: mmce.test.mean=0.0005096; time: 16.2 min
+```
+
+```
+## [Tune-x] 14: eta=0.125; colsample_bytree=0.565; gamma=0.435; max_depth=10; nrounds=1424
+```
+
+```
+## [Tune-y] 14: mmce.test.mean=0.0004077; time: 23.0 min
+```
+
+```
+## [Tune-x] 15: eta=0.24; colsample_bytree=0.81; gamma=1.58; max_depth=9; nrounds=1088
+```
+
+```
+## [Tune-y] 15: mmce.test.mean=0.0005606; time: 25.9 min
+```
+
+```
+## [Tune-x] 16: eta=0.493; colsample_bytree=0.885; gamma=1.66; max_depth=9; nrounds=1196
+```
+
+```
+## [Tune-y] 16: mmce.test.mean=0.0008154; time: 29.5 min
+```
+
+```
+## [Tune-x] 17: eta=0.301; colsample_bytree=0.692; gamma=1.7; max_depth=9; nrounds=1192
+```
+
+```
+## [Tune-y] 17: mmce.test.mean=0.0005606; time: 23.9 min
+```
+
+```
+## [Tune-x] 18: eta=0.483; colsample_bytree=0.671; gamma=0.355; max_depth=8; nrounds=709
+```
+
+```
+## [Tune-y] 18: mmce.test.mean=0.0004077; time: 14.3 min
+```
+
+```
+## [Tune-x] 19: eta=0.0819; colsample_bytree=0.833; gamma=0.409; max_depth=5; nrounds=1495
+```
+
+```
+## [Tune-y] 19: mmce.test.mean=0.0005606; time: 42.2 min
+```
+
+```
+## [Tune-x] 20: eta=0.345; colsample_bytree=0.695; gamma=0.381; max_depth=4; nrounds=1170
+```
+
+```
+## [Tune-y] 20: mmce.test.mean=0.0004077; time: 19.8 min
+```
+
+```
+## [Tune-x] 21: eta=0.184; colsample_bytree=0.595; gamma=0.865; max_depth=8; nrounds=1003
+```
+
+```
+## [Tune-y] 21: mmce.test.mean=0.0004077; time: 28.2 min
+```
+
+```
+## [Tune-x] 22: eta=0.331; colsample_bytree=0.799; gamma=1.85; max_depth=10; nrounds=764
+```
+
+```
+## [Tune-y] 22: mmce.test.mean=0.0007135; time: 42.1 min
+```
+
+```
+## [Tune-x] 23: eta=0.0671; colsample_bytree=0.691; gamma=1.29; max_depth=6; nrounds=1205
+```
+
+```
+## [Tune-y] 23: mmce.test.mean=0.0003567; time: 37.0 min
+```
+
+```
+## [Tune-x] 24: eta=0.397; colsample_bytree=0.811; gamma=0.573; max_depth=6; nrounds=938
+```
+
+```
+## [Tune-y] 24: mmce.test.mean=0.0006115; time: 23.2 min
+```
+
+```
+## [Tune-x] 25: eta=0.344; colsample_bytree=0.604; gamma=0.755; max_depth=6; nrounds=704
+```
+
+```
+## [Tune-y] 25: mmce.test.mean=0.0004587; time: 15.5 min
+```
+
+```
+## [Tune-x] 26: eta=0.214; colsample_bytree=0.811; gamma=0.813; max_depth=4; nrounds=864
+```
+
+```
+## [Tune-y] 26: mmce.test.mean=0.0005096; time: 15.6 min
+```
+
+```
+## [Tune-x] 27: eta=0.399; colsample_bytree=0.616; gamma=0.281; max_depth=6; nrounds=1419
+```
+
+```
+## [Tune-y] 27: mmce.test.mean=0.0003058; time: 40.7 min
+```
+
+```
+## [Tune-x] 28: eta=0.109; colsample_bytree=0.872; gamma=1.65; max_depth=6; nrounds=1392
+```
+
+```
+## [Tune-y] 28: mmce.test.mean=0.0008663; time: 33.0 min
+```
+
+```
+## [Tune-x] 29: eta=0.0933; colsample_bytree=0.574; gamma=1.11; max_depth=6; nrounds=723
+```
+
+```
+## [Tune-y] 29: mmce.test.mean=0.0003567; time: 14.0 min
+```
+
+```
+## [Tune-x] 30: eta=0.029; colsample_bytree=0.843; gamma=1.08; max_depth=6; nrounds=1264
+```
+
+```
+## [Tune-y] 30: mmce.test.mean=0.0007135; time: 29.3 min
+```
+
+```
+## [Tune] Result: eta=0.399; colsample_bytree=0.616; gamma=0.281; max_depth=6; nrounds=1419 : mmce.test.mean=0.0003058
+```
+
+```r
 saveRDS(model, "model.rds")
 ```
 
@@ -407,29 +673,20 @@ Lastly, I predict the test data.
 ```r
 pred <- predict(model, newdata = testing)
 
-as.data.frame(pred)
+pred
 ```
 
 ```
-##    response
-## 1         B
-## 2         A
-## 3         B
-## 4         A
-## 5         A
-## 6         E
-## 7         D
-## 8         B
-## 9         A
-## 10        A
-## 11        B
-## 12        C
-## 13        B
-## 14        A
-## 15        E
-## 16        E
-## 17        A
-## 18        B
-## 19        B
-## 20        B
+## Prediction: 20 observations
+## predict.type: response
+## threshold: 
+## time: 0.07
+##   response
+## 1        B
+## 2        A
+## 3        B
+## 4        A
+## 5        A
+## 6        E
+## ... (#rows: 20, #cols: 1)
 ```

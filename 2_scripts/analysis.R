@@ -168,3 +168,5 @@ testing <- testing[vars]
 pred <- predict(model, newdata = testing)
 
 pred
+
+saveRDS(pred,"pred.rds")

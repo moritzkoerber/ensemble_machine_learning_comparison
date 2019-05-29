@@ -1,5 +1,5 @@
 ---
-title: "Prediction of the quality of physical exercise on the basis of accelerometer data"
+title: "Course Assignment"
 author: "Moritz Körber"
 test: "`r Sys.setlocale(locale = 'English')`"
 date: "`r format(Sys.time(), '%B %d, %Y')`"
@@ -37,7 +37,7 @@ First, I am looking at the target variable "classe":
 glimpse(df$classe)
 ```
 
-Since it is a categorical variable, it is a classification problem. Hence, an algorithm like logistic regression, random forest, or a similar algorithm is suitable. Let's check if the classes are balanced:
+Since it is a categorical variable, it is a classification problem. Hence, an algorithm like logistic regression, random forests, or a similar algorithm is suitable. Let's check if the classes are balanced:
 
 ```{r}
 ggplot(df, aes(x = classe)) +
@@ -110,7 +110,7 @@ vis_guess(df)
 Plot the features:
 ```{r}
 nums <- unlist(lapply(df, is.numeric))
-featurePlot(x = as.data.frame(df)[nums], y = df$classe, plot = "strip")
+featurePlot(x = df[nums], y = df$classe, plot = "strip")
 ```
 
 Save the cleaned data:
@@ -125,25 +125,24 @@ readRDS("sessionInfo.rds")
 ```
 
 ## Task
-Create the learning task:
 ```{r}
 task <- makeClassifTask(id = "fitness.tracker", data = df, target = "classe")
 ```
 
 ## Resampling
-I chose to use a nested cross validation strategy with a 5-fold inner cross validation and a 3-fold outer cross validation. The evaluation of the tuned learners is performed by 5-fold cross validation in the inner cross validation:
+I chose to use a nested cross validation strategy with a 5-fold inner cross validation and a 3-fold outer cross validation. The evaluation of the tuned learners is performed by 5-fold cross validation. 
 ```{r}
 rdesc.inner <- makeResampleDesc("CV", iters = 5)
 ```
 
-The best parameter combination is then evaluated against the remaining fold of the 3-fold outer cross validation:
+The best parameter combination is then evaluated against the remaining fold of the 3-fold outer cross validation.
 ```{r}
 rdesc.outer <- makeResampleDesc(method = "CV", iters = 3)
 resample.instance.outer <- makeResampleInstance(desc = rdesc.outer, task = task)
 ```
 
 ## Measures
-The mean misclassification error is one of the most important metrics in classification problems and is chosen here to measure the learners' performance:
+The mean misclassification error is one of the most important metrics in classification problems.
 ```{r}
 measures <- list(mmce)
 ```
@@ -225,15 +224,12 @@ readRDS("bmplot.rds")
 XGBoost seems to be the best learner for this problem. Thus, I choose it to train my final model on the whole data set.
 
 # 4. Train final model
-```{r  eval = FALSE}
+```{r}
 model <- mlr::train(learner = tuned.lrn.xgboost, task = task)
 
 saveRDS(model, "model.rds")
 ```
-```{r include=FALSE}
-model <- readRDS("model.rds")
 
-```
 # 5. Predict the test data
 ## Load and prepare test data
 ```{r}
@@ -252,5 +248,5 @@ Lastly, I predict the test data.
 ```{r}
 pred <- predict(model, newdata = testing)
 
-as.data.frame(pred)
+pred
 ```
