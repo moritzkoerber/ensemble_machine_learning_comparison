@@ -207,6 +207,8 @@ bm <- benchmark(
   resamplings = resample.instance.outer,
   measures = measures
 )
+
+bm
 ```
 
 ```{r echo = FALSE}

@@ -360,6 +360,8 @@ bm <- benchmark(
   resamplings = resample.instance.outer,
   measures = measures
 )
+
+bm
 ```
 
 
@@ -386,6 +388,7 @@ model <- mlr::train(learner = tuned.lrn.xgboost, task = task)
 
 saveRDS(model, "1_data/model.rds")
 ```
+
 
 
 # 5. Predict the test data

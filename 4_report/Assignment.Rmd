@@ -208,6 +208,8 @@ bm <- benchmark(
   resamplings = resample.instance.outer,
   measures = measures
 )
+
+bm
 ```
 
 ```{r echo = FALSE}
@@ -233,8 +235,8 @@ saveRDS(model, "1_data/model.rds")
 
 ```{r include=FALSE}
 model <- readRDS("1_data/model.rds")
-
 ```
+
 # 5. Predict the test data
 ## Load and prepare test data
 ```{r}
