@@ -1,0 +1,594 @@
+
+R version 3.6.0 (2019-04-26) -- "Planting of a Tree"
+Copyright (C) 2019 The R Foundation for Statistical Computing
+Platform: x86_64-w64-mingw32/x64 (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> readRDS("bm.rds")
+Registered S3 methods overwritten by 'ggplot2':
+  method         from 
+  [.quosures     rlang
+  c.quosures     rlang
+  print.quosures rlang
+  task.id                         learner.id mmce.test.mean
+1    nike classif.randomForest.preproc.tuned    0.002344313
+> # -------------- Packages --------------
+> library("dplyr")
+
+Attaching package: ‘dplyr’
+
+The following objects are masked from ‘package:stats’:
+
+    filter, lag
+
+The following objects are masked from ‘package:base’:
+
+    intersect, setdiff, setequal, union
+
+> library("caret")
+Loading required package: lattice
+Loading required package: ggplot2
+Warning message:
+In as.POSIXlt.POSIXct(Sys.time()) :
+  unable to identify current timezone 'C':
+please set environment variable 'TZ'
+> library("mlr")
+Loading required package: ParamHelpers
+
+Attaching package: ‘mlr’
+
+The following object is masked from ‘package:caret’:
+
+    train
+
+> library("visdat")
+> df <- readRDS("1_data/cleaned_data.rds")
+> # -------------- Training --------------
+> # ---------- Task ----------
+> task <- makeClassifTask(id = "nike", data = df, target = "classe")
+> 
+> # ---------- Inner resampling ----------
+> rdesc.inner <- makeResampleDesc("CV", iters = 5)
+> 
+> # ---------- Measures ----------
+> measures <- list(mmce)
+> 
+> # ---------- Learners ----------
+> # ------- Random forest -------
+> lrn.rndforest <- makePreprocWrapperCaret("classif.randomForest", ppc.center = T, ppc.scale = T)
+> 
+> ps.rndforest <- makeParamSet(
++   makeIntegerParam("ntree", lower = 100, upper = 1000),
++   makeIntegerParam("mtry", lower = 5, upper = 20)
++   # makeLogicalParam("ppc.center"),
++   # makeLogicalParam("ppc.scale")
++ )
+> 
+> tune.ctrl.rndforest <- makeTuneControlRandom(maxit = 30)
+> 
+> tuned.lrn.rndforest <- makeTuneWrapper(lrn.rndforest,
++   par.set = ps.rndforest,
++   resampling = rdesc.inner,
++   control = tune.ctrl.rndforest
++ )
+> 
+> # ------- Xgboost -------
+> lrn.xgboost <- makePreprocWrapperCaret("classif.xgboost", ppc.center = T, ppc.scale = T)
+Warning in makeParam(id = id, type = "numeric", learner.param = TRUE, lower = lower,  :
+  NA used as a default value for learner parameter missing.
+ParamHelpers uses NA as a special value for dependent parameters.
+> 
+> ps.xgboost <- makeParamSet(
++   makeNumericParam("eta", lower = 0, upper = 0.5),
++   makeNumericParam("colsample_bytree", lower = 0.5, upper = 0.9),
++   makeNumericParam("gamma", lower = 0, upper = 2),
++   makeIntegerParam("max_depth", lower = 4, upper = 10),
++   makeIntegerParam("nrounds", lower = 500, upper = 1500)
++ )
+> 
+> tune.ctrl.xgboost <- makeTuneControlRandom(maxit = 30)
+> 
+> tuned.lrn.xgboost <- makeTuneWrapper(lrn.xgboost,
++   par.set = ps.xgboost,
++   resampling = rdesc.inner,
++   control = tune.ctrl.xgboost
++ )
+> 
+> # ------- Ranger -------
+> lrn.ranger <- makePreprocWrapperCaret("classif.ranger", ppc.center = T, ppc.scale = T)
+> 
+> # ------- Gbm -------
+> lrn.gbm <- makePreprocWrapperCaret("classif.gbm", ppc.center = T, ppc.scale = T)
+> 
+> ps.gbm <- makeParamSet(
++   makeIntegerParam("n.trees", lower = 100, upper = 1000),
++   makeIntegerParam("interaction.depth", lower = 5, upper = 20),
++   makeNumericParam("shrinkage", lower = 0, upper = 0.2)
++ )
+> 
+> tune.ctrl.gbm <- makeTuneControlRandom(maxit = 30)
+> 
+> tuned.lrn.gbm <- makeTuneWrapper(lrn.gbm,
++   par.set = ps.gbm,
++   resampling = rdesc.inner,
++   control = tune.ctrl.gbm
++ )
+> 
+> # ---------- Outer resampling ----------
+> # (each learner is evaluated with that one)
+> rdesc.outer <- makeResampleDesc(method = "CV", iters = 3)
+> resample.instance.outer <- makeResampleInstance(desc = rdesc.outer, task = task)
+> 
+> # ---------- Benchmark ----------
+> bm <- benchmark(
++   learners = list(
++     tuned.lrn.rndforest,
++     tuned.lrn.xgboost,
++     lrn.ranger
++     # tuned.lrn.gbm
++   ),
++   tasks = task,
++   resamplings = resample.instance.outer,
++   measures = measures
++ )
+Task: nike, Learner: classif.randomForest.preproc.tuned
+Resampling: cross-validation
+Measures:             mmce      
+[Tune] Started tuning learner classif.randomForest.preproc for parameter set:
+         Type len Def       Constr Req Tunable Trafo
+ntree integer   -   - 100 to 1e+03   -    TRUE     -
+mtry  integer   -   -      5 to 20   -    TRUE     -
+With control class: TuneControlRandom
+Imputation value: 1
+[Tune-x] 1: ntree=265; mtry=15
+[Tune-y] 1: mmce.test.mean=0.0029050; time: 1.5 min
+[Tune-x] 2: ntree=522; mtry=9
+[Tune-y] 2: mmce.test.mean=0.0029050; time: 2.7 min
+[Tune-x] 3: ntree=534; mtry=7
+[Tune-y] 3: mmce.test.mean=0.0038986; time: 2.7 min
+[Tune-x] 4: ntree=618; mtry=15
+[Tune-y] 4: mmce.test.mean=0.0030579; time: 3.5 min
+[Tune-x] 5: ntree=686; mtry=16
+[Tune-y] 5: mmce.test.mean=0.0026756; time: 3.9 min
+[Tune-x] 6: ntree=708; mtry=13
+[Tune-y] 6: mmce.test.mean=0.0032107; time: 3.9 min
+[Tune-x] 7: ntree=433; mtry=15
+[Tune-y] 7: mmce.test.mean=0.0029814; time: 2.4 min
+[Tune-x] 8: ntree=259; mtry=17
+[Tune-y] 8: mmce.test.mean=0.0030579; time: 1.5 min
+[Tune-x] 9: ntree=983; mtry=13
+[Tune-y] 9: mmce.test.mean=0.0032107; time: 5.4 min
+[Tune-x] 10: ntree=828; mtry=17
+[Tune-y] 10: mmce.test.mean=0.0026756; time: 4.8 min
+[Tune-x] 11: ntree=220; mtry=8
+[Tune-y] 11: mmce.test.mean=0.0039753; time: 1.1 min
+[Tune-x] 12: ntree=470; mtry=20
+[Tune-y] 12: mmce.test.mean=0.0028285; time: 2.8 min
+[Tune-x] 13: ntree=539; mtry=9
+[Tune-y] 13: mmce.test.mean=0.0034401; time: 2.8 min
+[Tune-x] 14: ntree=452; mtry=6
+[Tune-y] 14: mmce.test.mean=0.0039752; time: 2.3 min
+[Tune-x] 15: ntree=107; mtry=18
+[Tune-y] 15: mmce.test.mean=0.0032107; time: 0.7 min
+[Tune-x] 16: ntree=968; mtry=8
+[Tune-y] 16: mmce.test.mean=0.0035929; time: 5.0 min
+[Tune-x] 17: ntree=507; mtry=16
+[Tune-y] 17: mmce.test.mean=0.0026756; time: 2.9 min
+[Tune-x] 18: ntree=955; mtry=20
+[Tune-y] 18: mmce.test.mean=0.0025227; time: 5.8 min
+[Tune-x] 19: ntree=445; mtry=6
+[Tune-y] 19: mmce.test.mean=0.0040515; time: 2.2 min
+[Tune-x] 20: ntree=151; mtry=14
+[Tune-y] 20: mmce.test.mean=0.0033636; time: 0.9 min
+[Tune-x] 21: ntree=357; mtry=20
+[Tune-y] 21: mmce.test.mean=0.0028285; time: 2.2 min
+[Tune-x] 22: ntree=612; mtry=17
+[Tune-y] 22: mmce.test.mean=0.0027521; time: 3.5 min
+[Tune-x] 23: ntree=467; mtry=13
+[Tune-y] 23: mmce.test.mean=0.0030578; time: 2.6 min
+[Tune-x] 24: ntree=436; mtry=12
+[Tune-y] 24: mmce.test.mean=0.0032107; time: 2.4 min
+[Tune-x] 25: ntree=649; mtry=18
+[Tune-y] 25: mmce.test.mean=0.0026756; time: 3.8 min
+[Tune-x] 26: ntree=569; mtry=17
+[Tune-y] 26: mmce.test.mean=0.0028285; time: 3.3 min
+[Tune-x] 27: ntree=956; mtry=9
+[Tune-y] 27: mmce.test.mean=0.0032107; time: 4.9 min
+[Tune-x] 28: ntree=387; mtry=16
+[Tune-y] 28: mmce.test.mean=0.0030578; time: 2.2 min
+[Tune-x] 29: ntree=782; mtry=15
+[Tune-y] 29: mmce.test.mean=0.0028285; time: 4.4 min
+[Tune-x] 30: ntree=640; mtry=6
+[Tune-y] 30: mmce.test.mean=0.0041280; time: 3.2 min
+[Tune] Result: ntree=955; mtry=20 : mmce.test.mean=0.0025227
+[Resample] iter 1:    0.0024465 
+[Tune] Started tuning learner classif.randomForest.preproc for parameter set:
+         Type len Def       Constr Req Tunable Trafo
+ntree integer   -   - 100 to 1e+03   -    TRUE     -
+mtry  integer   -   -      5 to 20   -    TRUE     -
+With control class: TuneControlRandom
+Imputation value: 1
+[Tune-x] 1: ntree=289; mtry=11
+[Tune-y] 1: mmce.test.mean=0.0048162; time: 1.6 min
+[Tune-x] 2: ntree=647; mtry=6
+[Tune-y] 2: mmce.test.mean=0.0058100; time: 3.2 min
+[Tune-x] 3: ntree=240; mtry=6
+[Tune-y] 3: mmce.test.mean=0.0054278; time: 1.2 min
+[Tune-x] 4: ntree=187; mtry=6
+[Tune-y] 4: mmce.test.mean=0.0061159; time: 0.9 min
+[Tune-x] 5: ntree=307; mtry=12
+[Tune-y] 5: mmce.test.mean=0.0046634; time: 1.7 min
+[Tune-x] 6: ntree=400; mtry=20
+[Tune-y] 6: mmce.test.mean=0.0048162; time: 2.4 min
+[Tune-x] 7: ntree=825; mtry=11
+[Tune-y] 7: mmce.test.mean=0.0047398; time: 4.4 min
+[Tune-x] 8: ntree=408; mtry=17
+[Tune-y] 8: mmce.test.mean=0.0045869; time: 2.4 min
+[Tune-x] 9: ntree=162; mtry=8
+[Tune-y] 9: mmce.test.mean=0.0060393; time: 0.8 min
+[Tune-x] 10: ntree=198; mtry=18
+[Tune-y] 10: mmce.test.mean=0.0047398; time: 1.2 min
+[Tune-x] 11: ntree=628; mtry=18
+[Tune-y] 11: mmce.test.mean=0.0046633; time: 3.7 min
+[Tune-x] 12: ntree=157; mtry=13
+[Tune-y] 12: mmce.test.mean=0.0048162; time: 0.9 min
+[Tune-x] 13: ntree=334; mtry=6
+[Tune-y] 13: mmce.test.mean=0.0058865; time: 1.7 min
+[Tune-x] 14: ntree=408; mtry=11
+[Tune-y] 14: mmce.test.mean=0.0049691; time: 2.2 min
+[Tune-x] 15: ntree=768; mtry=19
+[Tune-y] 15: mmce.test.mean=0.0045104; time: 4.6 min
+[Tune-x] 16: ntree=439; mtry=7
+[Tune-y] 16: mmce.test.mean=0.0053514; time: 2.2 min
+[Tune-x] 17: ntree=156; mtry=6
+[Tune-y] 17: mmce.test.mean=0.0059629; time: 0.8 min
+[Tune-x] 18: ntree=842; mtry=16
+[Tune-y] 18: mmce.test.mean=0.0048927; time: 4.8 min
+[Tune-x] 19: ntree=824; mtry=11
+[Tune-y] 19: mmce.test.mean=0.0047397; time: 4.4 min
+[Tune-x] 20: ntree=869; mtry=12
+[Tune-y] 20: mmce.test.mean=0.0046633; time: 4.7 min
+[Tune-x] 21: ntree=266; mtry=12
+[Tune-y] 21: mmce.test.mean=0.0050456; time: 1.5 min
+[Tune-x] 22: ntree=338; mtry=10
+[Tune-y] 22: mmce.test.mean=0.0051220; time: 1.8 min
+[Tune-x] 23: ntree=757; mtry=8
+[Tune-y] 23: mmce.test.mean=0.0054278; time: 3.9 min
+[Tune-x] 24: ntree=483; mtry=19
+[Tune-y] 24: mmce.test.mean=0.0048163; time: 2.9 min
+[Tune-x] 25: ntree=167; mtry=15
+[Tune-y] 25: mmce.test.mean=0.0045868; time: 1.0 min
+[Tune-x] 26: ntree=153; mtry=19
+[Tune-y] 26: mmce.test.mean=0.0043575; time: 0.9 min
+[Tune-x] 27: ntree=285; mtry=15
+[Tune-y] 27: mmce.test.mean=0.0047397; time: 1.6 min
+[Tune-x] 28: ntree=427; mtry=5
+[Tune-y] 28: mmce.test.mean=0.0063452; time: 2.1 min
+[Tune-x] 29: ntree=653; mtry=18
+[Tune-y] 29: mmce.test.mean=0.0045104; time: 3.8 min
+[Tune-x] 30: ntree=307; mtry=13
+[Tune-y] 30: mmce.test.mean=0.0048926; time: 1.7 min
+[Tune] Result: ntree=153; mtry=19 : mmce.test.mean=0.0043575
+[Resample] iter 2:    0.0015288 
+[Tune] Started tuning learner classif.randomForest.preproc for parameter set:
+         Type len Def       Constr Req Tunable Trafo
+ntree integer   -   - 100 to 1e+03   -    TRUE     -
+mtry  integer   -   -      5 to 20   -    TRUE     -
+With control class: TuneControlRandom
+Imputation value: 1
+[Tune-x] 1: ntree=478; mtry=16
+[Tune-y] 1: mmce.test.mean=0.0040518; time: 2.7 min
+[Tune-x] 2: ntree=909; mtry=5
+[Tune-y] 2: mmce.test.mean=0.0051985; time: 4.5 min
+[Tune-x] 3: ntree=847; mtry=9
+[Tune-y] 3: mmce.test.mean=0.0039754; time: 4.4 min
+[Tune-x] 4: ntree=695; mtry=17
+[Tune-y] 4: mmce.test.mean=0.0038224; time: 4.0 min
+[Tune-x] 5: ntree=144; mtry=13
+[Tune-y] 5: mmce.test.mean=0.0038989; time: 0.8 min
+[Tune-x] 6: ntree=882; mtry=7
+[Tune-y] 6: mmce.test.mean=0.0048927; time: 4.4 min
+[Tune-x] 7: ntree=926; mtry=5
+[Tune-y] 7: mmce.test.mean=0.0055043; time: 4.6 min
+[Tune-x] 8: ntree=847; mtry=17
+[Tune-y] 8: mmce.test.mean=0.0035931; time: 4.9 min
+[Tune-x] 9: ntree=212; mtry=19
+[Tune-y] 9: mmce.test.mean=0.0041282; time: 1.3 min
+[Tune-x] 10: ntree=728; mtry=8
+[Tune-y] 10: mmce.test.mean=0.0043576; time: 3.7 min
+[Tune-x] 11: ntree=291; mtry=15
+[Tune-y] 11: mmce.test.mean=0.0035166; time: 1.7 min
+[Tune-x] 12: ntree=435; mtry=6
+[Tune-y] 12: mmce.test.mean=0.0051985; time: 2.2 min
+[Tune-x] 13: ntree=931; mtry=19
+[Tune-y] 13: mmce.test.mean=0.0039753; time: 5.6 min
+[Tune-x] 14: ntree=727; mtry=8
+[Tune-y] 14: mmce.test.mean=0.0042811; time: 3.7 min
+[Tune-x] 15: ntree=721; mtry=11
+[Tune-y] 15: mmce.test.mean=0.0042811; time: 3.8 min
+[Tune-x] 16: ntree=427; mtry=19
+[Tune-y] 16: mmce.test.mean=0.0038989; time: 2.6 min
+[Tune-x] 17: ntree=993; mtry=5
+[Tune-y] 17: mmce.test.mean=0.0055808; time: 4.9 min
+[Tune-x] 18: ntree=696; mtry=11
+[Tune-y] 18: mmce.test.mean=0.0042811; time: 3.7 min
+[Tune-x] 19: ntree=847; mtry=8
+[Tune-y] 19: mmce.test.mean=0.0044340; time: 4.3 min
+[Tune-x] 20: ntree=735; mtry=8
+[Tune-y] 20: mmce.test.mean=0.0045869; time: 3.8 min
+[Tune-x] 21: ntree=980; mtry=19
+[Tune-y] 21: mmce.test.mean=0.0036695; time: 5.8 min
+[Tune-x] 22: ntree=707; mtry=10
+[Tune-y] 22: mmce.test.mean=0.0038989; time: 3.7 min
+[Tune-x] 23: ntree=554; mtry=12
+[Tune-y] 23: mmce.test.mean=0.0038989; time: 3.0 min
+[Tune-x] 24: ntree=553; mtry=8
+[Tune-y] 24: mmce.test.mean=0.0045869; time: 2.8 min
+[Tune-x] 25: ntree=722; mtry=8
+[Tune-y] 25: mmce.test.mean=0.0044340; time: 3.7 min
+[Tune-x] 26: ntree=331; mtry=10
+[Tune-y] 26: mmce.test.mean=0.0043576; time: 1.8 min
+[Tune-x] 27: ntree=606; mtry=8
+[Tune-y] 27: mmce.test.mean=0.0042811; time: 3.1 min
+[Tune-x] 28: ntree=220; mtry=5
+[Tune-y] 28: mmce.test.mean=0.0051985; time: 1.1 min
+[Tune-x] 29: ntree=772; mtry=18
+[Tune-y] 29: mmce.test.mean=0.0038988; time: 4.5 min
+[Tune-x] 30: ntree=732; mtry=19
+[Tune-y] 30: mmce.test.mean=0.0040518; time: 4.4 min
+[Tune] Result: ntree=291; mtry=15 : mmce.test.mean=0.0035166
+[Resample] iter 3:    0.0018346 
+
+
+Aggregated Result: mmce.test.mean=0.0019366
+
+
+Task: nike, Learner: classif.xgboost.preproc.tuned
+Resampling: cross-validation
+Measures:             mmce      
+[Tune] Started tuning learner classif.xgboost.preproc for parameter set:
+                    Type len Def         Constr Req Tunable Trafo
+eta              numeric   -   -       0 to 0.5   -    TRUE     -
+colsample_bytree numeric   -   -     0.5 to 0.9   -    TRUE     -
+gamma            numeric   -   -         0 to 2   -    TRUE     -
+max_depth        integer   -   -        4 to 10   -    TRUE     -
+nrounds          integer   -   - 500 to 1.5e+03   -    TRUE     -
+With control class: TuneControlRandom
+Imputation value: 1
+[Tune-x] 1: eta=0.283; colsample_bytree=0.613; gamma=0.0673; max_depth=6; nrounds=1146
+[Tune-y] 1: mmce.test.mean=0.0005350; time: 3.0 min
+[Tune-x] 2: eta=0.235; colsample_bytree=0.545; gamma=1.97; max_depth=4; nrounds=1040
+[Tune-y] 2: mmce.test.mean=0.0019109; time: 2.2 min
+[Tune-x] 3: eta=0.391; colsample_bytree=0.72; gamma=1.9; max_depth=8; nrounds=1086
+[Tune-y] 3: mmce.test.mean=0.0019873; time: 5.1 min
+[Tune-x] 4: eta=0.344; colsample_bytree=0.804; gamma=0.459; max_depth=8; nrounds=923
+[Tune-y] 4: mmce.test.mean=0.0012230; time: 4.1 min
+[Tune-x] 5: eta=0.368; colsample_bytree=0.643; gamma=0.58; max_depth=5; nrounds=623
+[Tune-y] 5: mmce.test.mean=0.0007644; time: 1.7 min
+[Tune-x] 6: eta=0.0956; colsample_bytree=0.525; gamma=1.58; max_depth=8; nrounds=1227
+[Tune-y] 6: mmce.test.mean=0.0012230; time: 5.1 min
+[Tune-x] 7: eta=0.361; colsample_bytree=0.722; gamma=0.791; max_depth=5; nrounds=1156
+[Tune-y] 7: mmce.test.mean=0.0009937; time: 3.2 min
+[Tune-x] 8: eta=0.383; colsample_bytree=0.856; gamma=1.35; max_depth=9; nrounds=519
+[Tune-y] 8: mmce.test.mean=0.0019110; time: 2.8 min
+[Tune-x] 9: eta=0.3; colsample_bytree=0.641; gamma=0.309; max_depth=6; nrounds=1290
+[Tune-y] 9: mmce.test.mean=0.0007644; time: 3.9 min
+[Tune-x] 10: eta=0.49; colsample_bytree=0.536; gamma=0.681; max_depth=5; nrounds=575
+[Tune-y] 10: mmce.test.mean=0.0011465; time: 1.5 min
+[Tune-x] 11: eta=0.406; colsample_bytree=0.836; gamma=0.386; max_depth=7; nrounds=932
+[Tune-y] 11: mmce.test.mean=0.0011465; time: 3.6 min
+[Tune-x] 12: eta=0.29; colsample_bytree=0.684; gamma=0.378; max_depth=5; nrounds=996
+[Tune-y] 12: mmce.test.mean=0.0007644; time: 2.6 min
+[Tune-x] 13: eta=0.338; colsample_bytree=0.844; gamma=1.04; max_depth=10; nrounds=1235
+[Tune-y] 13: mmce.test.mean=0.0014523; time: 6.9 min
+[Tune-x] 14: eta=0.168; colsample_bytree=0.623; gamma=0.897; max_depth=9; nrounds=1101
+[Tune-y] 14: mmce.test.mean=0.0010701; time: 5.1 min
+[Tune-x] 15: eta=0.287; colsample_bytree=0.693; gamma=1.34; max_depth=10; nrounds=587
+[Tune-y] 15: mmce.test.mean=0.0014522; time: 3.2 min
+[Tune-x] 16: eta=0.428; colsample_bytree=0.669; gamma=1.24; max_depth=10; nrounds=635
+[Tune-y] 16: mmce.test.mean=0.0013758; time: 3.3 min
+[Tune-x] 17: eta=0.444; colsample_bytree=0.588; gamma=0.792; max_depth=8; nrounds=767
+[Tune-y] 17: mmce.test.mean=0.0009937; time: 3.1 min
+[Tune-x] 18: eta=0.357; colsample_bytree=0.57; gamma=1.85; max_depth=6; nrounds=1431
+[Tune-y] 18: mmce.test.mean=0.0013758; time: 4.7 min
+[Tune-x] 19: eta=0.226; colsample_bytree=0.733; gamma=1.73; max_depth=7; nrounds=735
+[Tune-y] 19: mmce.test.mean=0.0019108; time: 3.1 min
+[Tune-x] 20: eta=0.436; colsample_bytree=0.558; gamma=1.59; max_depth=9; nrounds=661
+[Tune-y] 20: mmce.test.mean=0.0013758; time: 3.1 min
+[Tune-x] 21: eta=0.157; colsample_bytree=0.767; gamma=1.71; max_depth=6; nrounds=955
+[Tune-y] 21: mmce.test.mean=0.0015287; time: 3.6 min
+[Tune-x] 22: eta=0.341; colsample_bytree=0.882; gamma=0.396; max_depth=5; nrounds=820
+[Tune-y] 22: mmce.test.mean=0.0007644; time: 2.4 min
+[Tune-x] 23: eta=0.273; colsample_bytree=0.545; gamma=0.689; max_depth=8; nrounds=552
+[Tune-y] 23: mmce.test.mean=0.0006879; time: 2.2 min
+[Tune-x] 24: eta=0.0756; colsample_bytree=0.815; gamma=1.25; max_depth=8; nrounds=1138
+[Tune-y] 24: mmce.test.mean=0.0011466; time: 5.6 min
+[Tune-x] 25: eta=0.481; colsample_bytree=0.598; gamma=1.16; max_depth=6; nrounds=1478
+[Tune-y] 25: mmce.test.mean=0.0012229; time: 4.9 min
+[Tune-x] 26: eta=0.0482; colsample_bytree=0.513; gamma=1.33; max_depth=6; nrounds=838
+[Tune-y] 26: mmce.test.mean=0.0014522; time: 2.7 min
+[Tune-x] 27: eta=0.0945; colsample_bytree=0.693; gamma=1.86; max_depth=6; nrounds=1448
+[Tune-y] 27: mmce.test.mean=0.0016816; time: 5.1 min
+[Tune-x] 28: eta=0.129; colsample_bytree=0.786; gamma=1.87; max_depth=7; nrounds=795
+[Tune-y] 28: mmce.test.mean=0.0016816; time: 3.4 min
+[Tune-x] 29: eta=0.00672; colsample_bytree=0.63; gamma=1.98; max_depth=5; nrounds=528
+[Tune-y] 29: mmce.test.mean=0.0207153; time: 1.6 min
+[Tune-x] 30: eta=0.123; colsample_bytree=0.57; gamma=0.921; max_depth=7; nrounds=724
+[Tune-y] 30: mmce.test.mean=0.0009172; time: 2.7 min
+[Tune] Result: eta=0.283; colsample_bytree=0.613; gamma=0.0673; max_depth=6; nrounds=1146 : mmce.test.mean=0.0005350
+[Resample] iter 1:    0.0007645 
+[Tune] Started tuning learner classif.xgboost.preproc for parameter set:
+                    Type len Def         Constr Req Tunable Trafo
+eta              numeric   -   -       0 to 0.5   -    TRUE     -
+colsample_bytree numeric   -   -     0.5 to 0.9   -    TRUE     -
+gamma            numeric   -   -         0 to 2   -    TRUE     -
+max_depth        integer   -   -        4 to 10   -    TRUE     -
+nrounds          integer   -   - 500 to 1.5e+03   -    TRUE     -
+With control class: TuneControlRandom
+Imputation value: 1
+[Tune-x] 1: eta=0.155; colsample_bytree=0.652; gamma=1.61; max_depth=7; nrounds=1444
+[Tune-y] 1: mmce.test.mean=0.0017583; time: 5.9 min
+[Tune-x] 2: eta=0.0529; colsample_bytree=0.876; gamma=0.399; max_depth=9; nrounds=618
+[Tune-y] 2: mmce.test.mean=0.0018348; time: 3.2 min
+[Tune-x] 3: eta=0.427; colsample_bytree=0.813; gamma=1.63; max_depth=6; nrounds=593
+[Tune-y] 3: mmce.test.mean=0.0021406; time: 2.2 min
+[Tune-x] 4: eta=0.35; colsample_bytree=0.787; gamma=0.0281; max_depth=6; nrounds=971
+[Tune-y] 4: mmce.test.mean=0.0006116; time: 2.3 min
+[Tune-x] 5: eta=0.288; colsample_bytree=0.694; gamma=1.58; max_depth=8; nrounds=710
+[Tune-y] 5: mmce.test.mean=0.0017583; time: 3.3 min
+[Tune-x] 6: eta=0.109; colsample_bytree=0.74; gamma=1.33; max_depth=6; nrounds=575
+[Tune-y] 6: mmce.test.mean=0.0018348; time: 2.1 min
+[Tune-x] 7: eta=0.0122; colsample_bytree=0.763; gamma=0.172; max_depth=10; nrounds=1195
+[Tune-y] 7: mmce.test.mean=0.0012997; time: 6.4 min
+[Tune-x] 8: eta=0.116; colsample_bytree=0.744; gamma=1.67; max_depth=7; nrounds=661
+[Tune-y] 8: mmce.test.mean=0.0021406; time: 2.9 min
+[Tune-x] 9: eta=0.47; colsample_bytree=0.844; gamma=0.0793; max_depth=5; nrounds=1412
+[Tune-y] 9: mmce.test.mean=0.0008409; time: 3.7 min
+[Tune-x] 10: eta=0.296; colsample_bytree=0.888; gamma=0.134; max_depth=10; nrounds=1390
+[Tune-y] 10: mmce.test.mean=0.0016054; time: 5.1 min
+[Tune-x] 11: eta=0.195; colsample_bytree=0.744; gamma=1.18; max_depth=4; nrounds=1294
+[Tune-y] 11: mmce.test.mean=0.0016054; time: 2.9 min
+[Tune-x] 12: eta=0.401; colsample_bytree=0.709; gamma=0.904; max_depth=5; nrounds=533
+[Tune-y] 12: mmce.test.mean=0.0016818; time: 1.5 min
+[Tune-x] 13: eta=0.207; colsample_bytree=0.675; gamma=1.66; max_depth=6; nrounds=607
+[Tune-y] 13: mmce.test.mean=0.0016054; time: 2.1 min
+[Tune-x] 14: eta=0.464; colsample_bytree=0.701; gamma=0.735; max_depth=4; nrounds=575
+[Tune-y] 14: mmce.test.mean=0.0015290; time: 1.3 min
+[Tune-x] 15: eta=0.317; colsample_bytree=0.645; gamma=1.36; max_depth=10; nrounds=1400
+[Tune-y] 15: mmce.test.mean=0.0019877; time: 7.2 min
+[Tune-x] 16: eta=0.412; colsample_bytree=0.566; gamma=0.25; max_depth=8; nrounds=1160
+[Tune-y] 16: mmce.test.mean=0.0011467; time: 3.9 min
+[Tune-x] 17: eta=0.49; colsample_bytree=0.867; gamma=1.49; max_depth=8; nrounds=810
+[Tune-y] 17: mmce.test.mean=0.0029815; time: 4.1 min
+[Tune-x] 18: eta=0.408; colsample_bytree=0.73; gamma=1; max_depth=10; nrounds=832
+[Tune-y] 18: mmce.test.mean=0.0021406; time: 4.3 min
+[Tune-x] 19: eta=0.00568; colsample_bytree=0.563; gamma=1.19; max_depth=7; nrounds=500
+[Tune-y] 19: mmce.test.mean=0.0081034; time: 2.2 min
+[Tune-x] 20: eta=0.167; colsample_bytree=0.588; gamma=0.402; max_depth=4; nrounds=1483
+[Tune-y] 20: mmce.test.mean=0.0009174; time: 3.0 min
+[Tune-x] 21: eta=0.229; colsample_bytree=0.864; gamma=0.379; max_depth=10; nrounds=1411
+[Tune-y] 21: mmce.test.mean=0.0018348; time: 6.6 min
+[Tune-x] 22: eta=0.324; colsample_bytree=0.702; gamma=0.007; max_depth=5; nrounds=1001
+[Tune-y] 22: mmce.test.mean=0.0005351; time: 1.6 min
+[Tune-x] 23: eta=0.222; colsample_bytree=0.637; gamma=0.292; max_depth=4; nrounds=772
+[Tune-y] 23: mmce.test.mean=0.0009938; time: 1.6 min
+[Tune-x] 24: eta=0.478; colsample_bytree=0.638; gamma=1.86; max_depth=10; nrounds=575
+[Tune-y] 24: mmce.test.mean=0.0019112; time: 3.1 min
+[Tune-x] 25: eta=0.418; colsample_bytree=0.889; gamma=0.464; max_depth=5; nrounds=1382
+[Tune-y] 25: mmce.test.mean=0.0011466; time: 4.1 min
+[Tune-x] 26: eta=0.148; colsample_bytree=0.724; gamma=1.88; max_depth=5; nrounds=1053
+[Tune-y] 26: mmce.test.mean=0.0026756; time: 3.0 min
+[Tune-x] 27: eta=0.252; colsample_bytree=0.546; gamma=1.98; max_depth=7; nrounds=1176
+[Tune-y] 27: mmce.test.mean=0.0016819; time: 4.5 min
+[Tune-x] 28: eta=0.317; colsample_bytree=0.641; gamma=1.18; max_depth=8; nrounds=716
+[Tune-y] 28: mmce.test.mean=0.0010703; time: 3.1 min
+[Tune-x] 29: eta=0.46; colsample_bytree=0.848; gamma=1.74; max_depth=4; nrounds=1263
+[Tune-y] 29: mmce.test.mean=0.0022935; time: 3.0 min
+[Tune-x] 30: eta=0.372; colsample_bytree=0.635; gamma=1.9; max_depth=8; nrounds=1487
+[Tune-y] 30: mmce.test.mean=0.0016819; time: 6.7 min
+[Tune] Result: eta=0.324; colsample_bytree=0.702; gamma=0.007; max_depth=5; nrounds=1001 : mmce.test.mean=0.0005351
+[Resample] iter 2:    0.0012231 
+[Tune] Started tuning learner classif.xgboost.preproc for parameter set:
+                    Type len Def         Constr Req Tunable Trafo
+eta              numeric   -   -       0 to 0.5   -    TRUE     -
+colsample_bytree numeric   -   -     0.5 to 0.9   -    TRUE     -
+gamma            numeric   -   -         0 to 2   -    TRUE     -
+max_depth        integer   -   -        4 to 10   -    TRUE     -
+nrounds          integer   -   - 500 to 1.5e+03   -    TRUE     -
+With control class: TuneControlRandom
+Imputation value: 1
+[Tune-x] 1: eta=0.314; colsample_bytree=0.715; gamma=1.9; max_depth=10; nrounds=902
+[Tune-y] 1: mmce.test.mean=0.0015289; time: 5.1 min
+[Tune-x] 2: eta=0.0312; colsample_bytree=0.691; gamma=1.8; max_depth=10; nrounds=787
+[Tune-y] 2: mmce.test.mean=0.0018347; time: 4.6 min
+[Tune-x] 3: eta=0.0125; colsample_bytree=0.577; gamma=1.03; max_depth=8; nrounds=752
+[Tune-y] 3: mmce.test.mean=0.0012996; time: 3.6 min
+[Tune-x] 4: eta=0.142; colsample_bytree=0.523; gamma=1.69; max_depth=7; nrounds=776
+[Tune-y] 4: mmce.test.mean=0.0016053; time: 2.9 min
+[Tune-x] 5: eta=0.205; colsample_bytree=0.693; gamma=0.765; max_depth=7; nrounds=1060
+[Tune-y] 5: mmce.test.mean=0.0014524; time: 4.2 min
+[Tune-x] 6: eta=0.436; colsample_bytree=0.837; gamma=1.32; max_depth=5; nrounds=1273
+[Tune-y] 6: mmce.test.mean=0.0019111; time: 3.8 min
+[Tune-x] 7: eta=0.416; colsample_bytree=0.706; gamma=0.424; max_depth=9; nrounds=549
+[Tune-y] 7: mmce.test.mean=0.0015289; time: 2.3 min
+[Tune-x] 8: eta=0.176; colsample_bytree=0.603; gamma=1.77; max_depth=4; nrounds=1227
+[Tune-y] 8: mmce.test.mean=0.0023698; time: 2.5 min
+[Tune-x] 9: eta=0.353; colsample_bytree=0.546; gamma=1.13; max_depth=5; nrounds=667
+[Tune-y] 9: mmce.test.mean=0.0016818; time: 1.7 min
+[Tune-x] 10: eta=0.135; colsample_bytree=0.568; gamma=0.457; max_depth=7; nrounds=1358
+[Tune-y] 10: mmce.test.mean=0.0013760; time: 4.8 min
+[Tune-x] 11: eta=0.329; colsample_bytree=0.686; gamma=0.358; max_depth=10; nrounds=1379
+[Tune-y] 11: mmce.test.mean=0.0015288; time: 5.7 min
+[Tune-x] 12: eta=0.0631; colsample_bytree=0.543; gamma=1.63; max_depth=7; nrounds=775
+[Tune-y] 12: mmce.test.mean=0.0013760; time: 2.9 min
+[Tune-x] 13: eta=0.0333; colsample_bytree=0.649; gamma=0.858; max_depth=9; nrounds=1352
+[Tune-y] 13: mmce.test.mean=0.0012996; time: 6.6 min
+[Tune-x] 14: eta=0.402; colsample_bytree=0.684; gamma=0.844; max_depth=9; nrounds=1147
+[Tune-y] 14: mmce.test.mean=0.0019111; time: 5.4 min
+[Tune-x] 15: eta=0.0395; colsample_bytree=0.747; gamma=1.55; max_depth=9; nrounds=1004
+[Tune-y] 15: mmce.test.mean=0.0020640; time: 5.5 min
+[Tune-x] 16: eta=0.191; colsample_bytree=0.899; gamma=0.125; max_depth=6; nrounds=1413
+[Tune-y] 16: mmce.test.mean=0.0012230; time: 4.7 min
+[Tune-x] 17: eta=0.238; colsample_bytree=0.781; gamma=0.46; max_depth=4; nrounds=1240
+[Tune-y] 17: mmce.test.mean=0.0014524; time: 2.8 min
+[Tune-x] 18: eta=0.423; colsample_bytree=0.557; gamma=0.587; max_depth=6; nrounds=531
+[Tune-y] 18: mmce.test.mean=0.0012231; time: 1.7 min
+[Tune-x] 19: eta=0.341; colsample_bytree=0.866; gamma=1.72; max_depth=4; nrounds=727
+[Tune-y] 19: mmce.test.mean=0.0025227; time: 1.7 min
+[Tune-x] 20: eta=0.261; colsample_bytree=0.613; gamma=0.22; max_depth=4; nrounds=1371
+[Tune-y] 20: mmce.test.mean=0.0009938; time: 2.8 min
+[Tune-x] 21: eta=0.282; colsample_bytree=0.895; gamma=0.0223; max_depth=10; nrounds=1064
+[Tune-y] 21: mmce.test.mean=0.0012995; time: 2.6 min
+[Tune-x] 22: eta=0.458; colsample_bytree=0.838; gamma=0.266; max_depth=4; nrounds=552
+[Tune-y] 22: mmce.test.mean=0.0011466; time: 1.3 min
+[Tune-x] 23: eta=0.388; colsample_bytree=0.644; gamma=1.36; max_depth=5; nrounds=670
+[Tune-y] 23: mmce.test.mean=0.0018347; time: 1.8 min
+[Tune-x] 24: eta=0.0107; colsample_bytree=0.727; gamma=1.78; max_depth=5; nrounds=595
+[Tune-y] 24: mmce.test.mean=0.0083325; time: 1.8 min
+[Tune-x] 25: eta=0.157; colsample_bytree=0.575; gamma=1.26; max_depth=5; nrounds=1314
+[Tune-y] 25: mmce.test.mean=0.0016818; time: 3.4 min
+[Tune-x] 26: eta=0.188; colsample_bytree=0.505; gamma=1.33; max_depth=7; nrounds=545
+[Tune-y] 26: mmce.test.mean=0.0012231; time: 2.0 min
+[Tune-x] 27: eta=0.37; colsample_bytree=0.85; gamma=1.47; max_depth=4; nrounds=1296
+[Tune-y] 27: mmce.test.mean=0.0025227; time: 3.1 min
+[Tune-x] 28: eta=0.357; colsample_bytree=0.854; gamma=1.78; max_depth=6; nrounds=807
+[Tune-y] 28: mmce.test.mean=0.0025227; time: 3.1 min
+[Tune-x] 29: eta=0.455; colsample_bytree=0.748; gamma=1.52; max_depth=6; nrounds=1466
+[Tune-y] 29: mmce.test.mean=0.0019875; time: 5.2 min
+[Tune-x] 30: eta=0.121; colsample_bytree=0.75; gamma=1.68; max_depth=4; nrounds=1190
+[Tune-y] 30: mmce.test.mean=0.0022933; time: 2.7 min
+[Tune] Result: eta=0.261; colsample_bytree=0.613; gamma=0.22; max_depth=4; nrounds=1371 : mmce.test.mean=0.0009938
+[Resample] iter 3:    0.0003058 
+
+
+Aggregated Result: mmce.test.mean=0.0007644
+
+
+Task: nike, Learner: classif.ranger.preproc
+Resampling: cross-validation
+Measures:             mmce      
+[Resample] iter 1:    0.0039755 
+[Resample] iter 2:    0.0019875 
+[Resample] iter 3:    0.0019875 
+
+
+Aggregated Result: mmce.test.mean=0.0026502
+
+
+> 
+> bm
+  task.id                         learner.id mmce.test.mean
+1    nike classif.randomForest.preproc.tuned   0.0019366278
+2    nike      classif.xgboost.preproc.tuned   0.0007644481
+3    nike             classif.ranger.preproc   0.0026501542
