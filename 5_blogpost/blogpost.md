@@ -221,7 +221,7 @@ nums <- unlist(lapply(df, is.numeric))
 featurePlot(x = as.data.frame(df)[nums], y = df$classe, plot = "strip")
 ```
 <figure>
-  <img src="images/unnamed-chunk-10-1.png"/>
+  <img src="images/plot_features.png"/>
 </figure>
 
 Looks fine, let's save the progress! We can now tinker around with a clean data set and can always return back to this state.
