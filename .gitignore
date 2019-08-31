@@ -2,5 +2,5 @@
 .Rhistory
 .RData
 .Ruserdata
-/plots/*
 *.rds
+Thumbs.db
